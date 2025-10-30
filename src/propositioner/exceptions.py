@@ -1,0 +1,2 @@
+class PropositionerError(Exception):
+	pass

@@ -1,12 +1,14 @@
 from fastapi import APIRouter
-from .schemas import IngestRequest, ChatRequest, SessionResponse
+from .schemas import IngestRequest, ChatRequest, SessionResponse, IngestFolderRequest
 
 router = APIRouter()
 
 @router.post("/ingest")
-async def ingest(request: IngestRequest):
-    """Ingest new data"""
-    pass  # implement ingestion logic
+def ingest(request: IngestFolderRequest):
+    """Ingest documents from a folder using semantic pipeline (first 5 docs)."""
+    from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+    data_preprocess_semantic_pipeline.run(request.folder_path)
+    return {"status": "success", "folder": request.folder_path, "taken": 5}
 
 @router.post("/chat")
 async def chat(request: ChatRequest):

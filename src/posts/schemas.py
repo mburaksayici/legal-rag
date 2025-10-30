@@ -11,3 +11,6 @@ class ChatRequest(BaseModel):
 class SessionResponse(BaseModel):
     id: str
     messages: List[str] = []
+
+class IngestFolderRequest(BaseModel):
+    folder_path: str = "assets/sample_pdfs"
