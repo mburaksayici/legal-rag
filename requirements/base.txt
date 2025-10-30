@@ -8,3 +8,6 @@ langchain-text-splitters
 nltk
 sentencepiece
 spacy
+crewai
+langchain-openai
+openai

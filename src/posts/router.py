@@ -11,9 +11,12 @@ def ingest(request: IngestFolderRequest):
     return {"status": "success", "folder": request.folder_path, "taken": 5}
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
-    """Chat endpoint for sending messages"""
-    pass  # implement chat logic
+def chat(request: ChatRequest):
+    """Chat endpoint for sending messages using chat agent."""
+    from src.agents.chat_agent.crew import ChatCrew
+    crew = ChatCrew()
+    answer = crew.chat(question=request.message, context=None)
+    return {"message": answer, "session_id": request.session_id}
 
 @router.get("/sessions/{id}", response_model=SessionResponse)
 async def get_session(id: str):
