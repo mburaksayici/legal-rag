@@ -256,4 +256,13 @@ uv run python -m spacy download en_core_web_sm
 
 ### Retriever
 
+Automergingretrieval is used. 
+
+
+#### Query Enhancement
+
+Before the retrieval layer, query enhancement is applied. 
+
+
+
 Automerging retriever heavily advised by Langchain/Milvus. TO DO: Place diagrams .

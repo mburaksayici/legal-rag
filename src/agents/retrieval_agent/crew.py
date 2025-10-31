@@ -1,5 +1,4 @@
 from crewai import Crew, Task  # type: ignore
-from llama_index.core import StorageContext  # type: ignore
 from langchain_openai import ChatOpenAI  # type: ignore
 
 from .agent import RetrievalAgent
@@ -8,8 +7,8 @@ from src.embeddings.base import BaseEmbedding as CustomBaseEmbedding
 
 
 class RetrievalCrew:
-	def __init__(self, storage_context: StorageContext, embedding: CustomBaseEmbedding):
-		self.retrieval_agent_obj = RetrievalAgent(storage_context=storage_context, embedding=embedding)
+	def __init__(self, embedding: CustomBaseEmbedding, use_query_enhancer: bool = True):
+		self.retrieval_agent_obj = RetrievalAgent(embedding=embedding, use_query_enhancer=use_query_enhancer)
 		self.crew = Crew(
 			agents=[self.retrieval_agent_obj.agent],
 			tasks=[self._create_task()],
@@ -21,11 +20,11 @@ class RetrievalCrew:
 		return Task(
 			description="""Answer the user's question: {question}.
 
-First, retrieve relevant information from the database.
-Then, answer the question based on the retrieved context.
+First, retrieve relevant information from European legal documents using enhanced queries.
+Then, answer the question based on the retrieved legal context.
 At the end, provide citations in the format: [Source: <filename>] for each source used.""",
 			agent=self.retrieval_agent_obj.agent,
-			expected_output="A clear answer to the question with citations at the end in format [Source: <filename>]",
+			expected_output="A clear answer to the legal question with citations at the end in format [Source: <filename>]",
 		)
 
 	def answer_with_citations(self, question: str) -> str:
