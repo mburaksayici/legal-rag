@@ -24,4 +24,7 @@ dependencies = [
     "spacy>=3.8.7",
     "transformers>=4.57.1",
     "uvicorn>=0.38.0",
+    "redis>=7.0.1",
+    "beanie>=2.0.0",
+    "motor>=3.7.1",
 ]

@@ -266,3 +266,40 @@ Before the retrieval layer, query enhancement is applied.
 
 
 Automerging retriever heavily advised by Langchain/Milvus. TO DO: Place diagrams .
+
+
+### Tech Stack for Session Management 
+Considerations:
+- Reads will be dominant.
+- Conversation retrieval should be quick.
+- Conversation retrieval can be needed both by backend and frontend.
+
+
+
+a. Redis : To keep latest conversations/sessions in-memory and quick recovery.
+
+b. Mongodb : Persistent DB to:
+1. Retrieve unused conversation from mongodb to redis, if conversation is reinstantiated
+2. Store conversations and other related artifacts (redis keys) which are cache invalidated due to TTL (6 hours, 1 business day, 1 week)
+
+c. Celery : To orchestrate TTLs from redis to mongo.
+
+Pattern : Cache Aside Pattern
+
+App <-> Redis <-> MongoDB 
+
+
+#### Redis Express 
+
+To test if conversation in redis
+
+'
+GET session:0ea95f3a-b0ab-4e2e-92d8-6e227fd7715f
+
+TTL session:0ea95f3a-b0ab-4e2e-92d8-6e227fd7715f
+'
+
+
+Mongodb Atlas (heavily used it before, quite liked it) can be used for tracking, but for simplicity I wanted to use Mongo Express UI.
+
+

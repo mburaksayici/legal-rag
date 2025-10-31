@@ -1,0 +1,21 @@
+# Development override for docker-compose
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount source code for hot reload during development
+      - ./src:/app/src
+      - ./templates:/app/templates
+      - ./tests:/app/tests
+    environment:
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+    command: ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Development tools are now in main docker-compose.yml

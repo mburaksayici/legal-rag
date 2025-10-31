@@ -1,3 +1,8 @@
 
-db_path = "./legal_chromadb" # TO DO : Move to .env 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+db_path = os.getenv('CHROMADB_PATH', './legal_chromadb')
 
