@@ -242,6 +242,18 @@ Final output via late chunking is :
 
 
 
+### Chat Agent
 
+As a framework for thinking/orchestrating AI agents I want to experiment CrewAI.
+
+I've written my own pipelines myself 2 years ago, I've used celery+own implementation on agents at career.io/interview-prep . Tested  but didn't like Langchain 1 year ago for different project. 
+
+At the end of the day they are extension of api-wrappers, nothing wrong with writing 2-3 step agents by yourself but when agents have multistep, orchestration could be better. 
+
+Prompt templating on MongoDB and letting PMs to modify prompts is also a good choice for experimenting, leaving polishing to PMs. 
 
 uv run python -m spacy download en_core_web_sm
+
+### Retriever
+
+Automerging retriever heavily advised by Langchain/Milvus. TO DO: Place diagrams .

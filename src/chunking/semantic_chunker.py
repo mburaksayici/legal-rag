@@ -53,9 +53,7 @@ class SemanticChunker(BaseChunker):
 			proposed = self._propositionize_item(item)
 			# Flatten propositions text for this item
 			proposition_text = " ".join([c.text for c in proposed])
-			breakpoint()
 			sentences = self._langchain_split_to_sentences(proposition_text)
-			breakpoint()
 			if len(sentences) <= 1:
 				# trivial case
 				text = sentences[0] if sentences else proposition_text
@@ -96,7 +94,6 @@ class SemanticChunker(BaseChunker):
 		sentences: List[str] = []
 		#for para in paragraphs:
 			# Prefer spaCy splitter if available
-		breakpoint()
 		if SpacyTextSplitter is not None:
 			try:
 				#text=text.replace("\n", " ")

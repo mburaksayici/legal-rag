@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from src.ingestion.pdf_ingestor import PDFIngestor
 from src.ingestion.schemas import IngestedItem
@@ -9,7 +9,9 @@ from src.chunking.semantic_chunker import SemanticChunker
 from src.propositioner.t5_propositioner import T5Propositioner
 from src.embeddings.e5_small import E5SmallEmbedding
 from src.embeddings.schemas import EmbeddingInput
-from src.vectordb.milvus.client import MilvusInterface
+from src.retrieval.node_builder import NodeBuilder
+from src.retrieval.storage_setup import StorageSetup
+from llama_index.core import VectorStoreIndex  # type: ignore
 
 # Named factories
 INGESTORS: Dict[str, Callable[[], object]] = {
@@ -28,10 +30,6 @@ CHUNKERS: Dict[str, Callable[[T5Propositioner, E5SmallEmbedding], SemanticChunke
 	"semantic_chunking": lambda prop, emb: SemanticChunker(propositioner=prop, embeddings=emb),
 }
 
-VECTORDBS: Dict[str, Callable[[], object]] = {
-	"milvus-local": MilvusInterface,
-}
-
 
 class DataPreprocessBase(ABC):
 	@abstractmethod
@@ -46,18 +44,17 @@ class DataPreprocessSemantic(DataPreprocessBase):
 		prop_name = config.get("propositioner", "t5-propositioner")
 		emb_name = config.get("embedding", "e5-small")
 		chunker_name = config.get("chunker", "semantic_chunking")
-		vectordb_name = config.get("vectordb", "milvus-local")
 
 		ingestor_cls = INGESTORS[ingestor_name]
 		prop_cls = PROPOSITIONERS[prop_name]
 		emb_cls = EMBEDDINGS[emb_name]
-		vectordb_cls = VECTORDBS[vectordb_name]
 
 		self.ingestor: PDFIngestor = ingestor_cls()  # type: ignore[call-arg]
 		self.propositioner: T5Propositioner = prop_cls()  # type: ignore[call-arg]
 		self.embedding: E5SmallEmbedding = emb_cls()  # type: ignore[call-arg]
 		self.chunker: SemanticChunker = CHUNKERS[chunker_name](self.propositioner, self.embedding)
-		self.vectordb: MilvusInterface = vectordb_cls()  # type: ignore[call-arg]
+		self.storage_setup = StorageSetup(embedding=self.embedding)
+		self.index: Optional[VectorStoreIndex] = None
 
 	def run(self, folder_path: str) -> None:
 		# For now we support folder paths. URI handling can be added later.
@@ -78,18 +75,26 @@ class DataPreprocessSemantic(DataPreprocessBase):
 		chunk_request = ChunkRequest(items=[ChunkItem(source=i.source, len_characters=i.len_characters, text=i.text) for i in ingested_items])
 		chunk_response: ChunkResponse = self.chunker.chunk(chunk_request)
 
-		texts = [c.text for c in chunk_response.chunks]
-		if not texts:
+		if not chunk_response.chunks:
 			return
-		emb = self.embedding.embed(EmbeddingInput(documents=texts))
 
-		metadatas = [{"source": c.source, "len_characters": c.len_characters} for c in chunk_response.chunks]
-		self.vectordb.ensure_collection(dim=self.embedding.embedding_size)
-		self.vectordb.upsert_embeddings(emb.embeddings, metadatas)
+		# Build parent texts dict (full text per source)
+		parent_texts: Dict[str, str] = {}
+		for item in ingested_items:
+			source = item.source
+			if source not in parent_texts:
+				parent_texts[source] = item.text
+
+		# Build LlamaIndex nodes
+		leaf_nodes, parent_docs = NodeBuilder.build_nodes_from_chunks(
+			chunk_response.chunks, parent_texts
+		)
+
+		# Create index directly - no StorageContext needed
+		self.index = self.storage_setup.create_index_from_nodes(leaf_nodes)
 
 
 data_preprocess_semantic_config = {
-	"vectordb": "milvus-local",
 	"chunker": "semantic_chunking",
 	"ingestor": "pdf",
 	"embedding": "e5-small",
