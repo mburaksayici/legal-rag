@@ -21,7 +21,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.include_router(posts_router)
 
-# Add more routers if needed
+# All routes are now organized in src/posts/router.py
 
 if __name__ == "__main__":
     import uvicorn

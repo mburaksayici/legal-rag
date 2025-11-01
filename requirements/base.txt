@@ -15,5 +15,6 @@ llama-index
 llama-index-vector-stores-chroma
 chromadb
 redis
+celery[redis]
 beanie
 motor

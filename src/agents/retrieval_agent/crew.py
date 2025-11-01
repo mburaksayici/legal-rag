@@ -18,10 +18,8 @@ class RetrievalCrew:
 	def _create_task(self) -> Task:
 		"""Create task that retrieves and answers with citations."""
 		return Task(
-			description="""Answer the user's question: {question}.
-
+			description="""Format retrieved docs: {question}.
 First, retrieve relevant information from European legal documents using enhanced queries.
-Then, answer the question based on the retrieved legal context.
 At the end, provide citations in the format: [Source: <filename>] for each source used.""",
 			agent=self.retrieval_agent_obj.agent,
 			expected_output="A clear answer to the legal question with citations at the end in format [Source: <filename>]",

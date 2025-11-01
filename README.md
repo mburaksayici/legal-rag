@@ -14,7 +14,46 @@ Or if I foresee the project requirements (eg. if I know I use redis+celery+flask
 
 Throughout history I've used plain pip, poetry, pdm. For the project I'll use uv.  
 
-### Data Parsing 
+### Data Parsing & Ingestion System
+
+The system now features a **Celery-based asynchronous ingestion pipeline** with real-time progress tracking via Redis.
+
+#### 🚀 New Celery-Based Ingestion Features
+
+- **Dynamic Fan-Out Pattern**: Master task spawns individual subtasks for each document
+- **Parallel Processing**: Documents processed simultaneously across multiple workers
+- **Real-time Progress Tracking**: Monitor ingestion progress with detailed metrics per document
+- **Redis-backed Status**: Progress data stored in Redis for fast access
+- **Comprehensive Metrics**: Track successful/failed documents, estimated time remaining
+- **Multiple File Types**: Support for PDF and JSON documents
+- **Scalable Architecture**: Horizontal scaling with multiple Celery workers
+- **Fault Tolerance**: Individual document failures don't stop the entire job
+
+#### 📊 Progress Tracking Metrics
+
+- Total documents to process
+- Documents processed so far
+- Successful vs failed document counts
+- Current file being processed
+- Estimated time remaining
+- Progress percentage
+- Real-time status updates
+
+#### 🔧 API Endpoints
+
+All routes are organized in `src/posts/router.py` for clean architecture:
+
+| Endpoint | Method | Description |
+|----------|---------|-------------|
+| `/ingestion/start_job` | POST | Start folder ingestion job |
+| `/ingestion/start_single_file` | POST | Start single file ingestion |
+| `/ingestion/status/{job_id}` | GET | Get job progress and status |
+| `/ingestion/jobs` | GET | List all active jobs |
+| `/ingest` | POST | Legacy endpoint (redirects to Celery) |
+| `/chat` | POST | Chat with AI assistant |
+| `/sessions/{session_id}` | GET | Get session information |
+
+#### 📋 Legacy Comparison
 
 | Category | Description | Tools / Examples | Cost | Pros | Cons |
 |-----------|--------------|------------------|------|------|------|
@@ -22,7 +61,7 @@ Throughout history I've used plain pip, poetry, pdm. For the project I'll use uv
 | **APIs** | High-quality baseline; no constraint on budget | LangChain, MinerU | ~0.0001¢ per page (basic parsing) | High accuracy, easy setup | Cost increases with scale |
 | **Custom Solutions** | Necessary in some domains; customizable pipelines | LangChain, PyMuPDF, Unstructured, Docling | Free (except man-hours) | Custom logic, domain adaptability | Higher engineering effort |
 | **API Custom Development** | Building your own parsing interface or logic | LangChain Parse | — | Flexible, extensible | Maintenance overhead |
-| **Scalability Consideration** | Initially low cost, but can become expensive at scale | — | — | Control over infrastructure | “We can implement it ourselves” often becomes a harder problem |
+| **Scalability Consideration** | Initially low cost, but can become expensive at scale | — | — | Control over infrastructure | "We can implement it ourselves" often becomes a harder problem |
 | **Domain-Specific Parsing** | Needed for specialized sectors | Defense Tech, Banking | — | Tailored accuracy | Requires domain expertise |
 
 
@@ -303,3 +342,10 @@ TTL session:0ea95f3a-b0ab-4e2e-92d8-6e227fd7715f
 Mongodb Atlas (heavily used it before, quite liked it) can be used for tracking, but for simplicity I wanted to use Mongo Express UI.
 
 
+#### Ingestion 
+
+1. Fastapi triggers celery, given the folder. 
+2. Celery creates number of tasks per file. 
+3. Ingest/status api to track status of a job. 
+
+Celery runs on different container, connected to same redis (not same queue) with the conversation queue. 

@@ -85,6 +85,25 @@ services:
       - saga-network
     restart: unless-stopped
 
+  # Celery worker (runs background ingestion tasks)
+  celery-worker:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+      - ./assets:/app/assets
+      - ./legal_chromadb:/app/legal_chromadb
+      - ./embedding_weights:/app/embedding_weights
+      - ./hf_models:/app/hf_models
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - saga-network
+    restart: unless-stopped
+    command: ["uv", "run", "celery", "-A", "src.distributed_task.celery_app", "worker", "--loglevel=info", "--concurrency=1", "--pool=prefork"]
+
 volumes:
   redis_data:
   mongodb_data:

@@ -15,7 +15,7 @@ class StorageSetup:
 	def __init__(
 		self,
 		embedding: CustomBaseEmbedding,
-		chromadb_db_path: str = None,
+		chromadb_db_path: str = db_path,
 		collection_name: str = "rag_docs",
 	):
 		self.embedding = embedding

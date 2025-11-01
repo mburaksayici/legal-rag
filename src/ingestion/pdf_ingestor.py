@@ -1,6 +1,11 @@
 from .base import BaseIngestor
 from .schemas import IngestRequest, IngestResponse, IngestedItem
 
+from docling.document_converter import DocumentConverter  # type: ignore
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.base_models import InputFormat
+
 class PDFIngestor(BaseIngestor):
 	def __init__(self):
 		super().__init__(name="pdf")
@@ -15,9 +20,18 @@ class PDFIngestor(BaseIngestor):
 		text = ""
 		try:
 			# Lazy import to avoid hard dependency at import-time
-			from docling.document_converter import DocumentConverter  # type: ignore
+			pipeline_options = PdfPipelineOptions(
+			do_ocr=False,
+			generate_page_images=False,         # Sayfa görsellerini ekler
+			generate_picture_images=False,
+				)
 			# NOTE: URL handling can be added by downloading to a temp file first
-			converter = DocumentConverter()
+			converter = DocumentConverter(
+    format_options={
+        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+    },
+)
+
 			result = converter.convert(path_or_url)  # expects local file path
 			# Depending on Docling version, export APIs differ; using generic text export
 			# text = result.document.export_to_text()  # placeholder API

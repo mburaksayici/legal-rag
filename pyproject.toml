@@ -27,4 +27,9 @@ dependencies = [
     "redis>=7.0.1",
     "beanie>=2.0.0",
     "motor>=3.7.1",
+    "celery[redis]>=5.3.1",
+    "pytesseract>=0.3.13",
+    "rapidocr>=3.4.2",
+    "onnxruntime>=1.23.2",
+    "easyocr>=1.7.2",
 ]

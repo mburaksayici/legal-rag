@@ -1,8 +1,7 @@
 
 import os
-from dotenv import load_dotenv
+from src.config import CHROMADB_DB_PATH
 
-load_dotenv()
 
-db_path = os.getenv('CHROMADB_PATH', './legal_chromadb')
+db_path = CHROMADB_DB_PATH
 
