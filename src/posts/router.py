@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
-from .schemas import IngestFolderRequest
+from .schemas import IngestFolderRequest, RetrievalRequest, RetrievalResponse, RetrievedDocument
 from src.sessions.schemas import ChatRequest, ChatResponse, SessionResponse
 from src.sessions.service import session_service
 from src.sessions.models import MessageRole
@@ -16,26 +16,6 @@ from datetime import datetime
 
 router = APIRouter()
 
-@router.post("/ingest", tags=["ingestion"])
-def ingest(request: IngestFolderRequest):
-    """
-    Legacy ingest endpoint - now redirects to Celery-based ingestion.
-    Use /ingestion/start_job for new async ingestion with progress tracking.
-    """
-    from src.distributed_task.ingestion_tasks import ingest_documents_task
-    
-    # Start the Celery task
-    task = ingest_documents_task.delay(
-        folder_path=request.folder_path,
-        file_types=["pdf"]  # Default to PDF for backward compatibility
-    )
-    
-    return {
-        "status": "started", 
-        "folder": request.folder_path, 
-        "job_id": task.id,
-        "message": "Ingestion started asynchronously. Use /ingestion/status/{job_id} to check progress."
-    }
 
 @router.post("/chat", response_model=ChatResponse, tags=["chat"])
 async def chat(request: ChatRequest):
@@ -92,6 +72,121 @@ async def get_session(session_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving session: {str(e)}")
+
+
+# ===== RETRIEVAL ROUTES =====
+
+@router.post("/retrieve", response_model=RetrievalResponse, tags=["retrieval"])
+async def retrieve_documents(request: RetrievalRequest):
+    """
+    Retrieve documents from vector database with optional LLM processing.
+    
+    Parameters:
+    - query: The search query
+    - top_k: Number of documents to retrieve (default: 10)
+    - use_query_enhancer: Enable query enhancement with LLM (default: False)
+    - use_reranking: Enable LLM-based reranking (default: False)
+    
+    When both are False:
+    - Direct vector similarity search only
+    - Returns original similarity scores
+    
+    When enabled:
+    - Query enhancement: Generates 3 enhanced query variations
+    - Reranking: Uses gpt-4o-mini to rerank by relevance
+    - Note: Original similarity scores are replaced by reranking scores
+    
+    Returns detailed information including document text, sources, scores, and metadata.
+    """
+    try:
+        # Import here to avoid circular dependencies
+        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        
+        # Get embedding from pipeline
+        embedding = data_preprocess_semantic_pipeline.embedding
+        if embedding is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Embedding model not initialized"
+            )
+        
+        # Check if we need detailed results with scores (only when no LLM features)
+        if not request.use_query_enhancer and not request.use_reranking:
+            # Use SimpleQdrantRetriever directly for detailed results with scores
+            from src.retrieval.simple_qdrant_retriever import SimpleQdrantRetriever
+            
+            retriever = SimpleQdrantRetriever(embedding=embedding)
+            
+            if not retriever.is_available():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Vector database is not available or has no data"
+                )
+            
+            # Retrieve documents with detailed information including scores
+            detailed_results = retriever.retrieve_detailed(
+                query=request.query,
+                top_k=request.top_k
+            )
+            
+            # Convert to response format
+            documents = [
+                RetrievedDocument(
+                    text=doc["text"],
+                    source=doc["source"],
+                    score=doc["score"],
+                    metadata=doc["metadata"]
+                )
+                for doc in detailed_results
+            ]
+        else:
+            # Use RetrievalAgent with optional LLM features
+            from src.agents.retrieval_agent.agent import RetrievalAgent
+            
+            retrieval_agent = RetrievalAgent(embedding=embedding)
+            
+            # Retrieve using RetrievalAgent with optional features
+            context_text, sources = retrieval_agent.retrieve(
+                question=request.query,
+                use_query_enhancer=request.use_query_enhancer,
+                use_reranking=request.use_reranking,
+                top_k=request.top_k
+            )
+            
+            if not context_text:
+                return RetrievalResponse(
+                    query=request.query,
+                    documents=[],
+                    total_retrieved=0
+                )
+            
+            # Parse the context back into individual documents
+            document_texts = [doc.strip() for doc in context_text.split('\n\n') if doc.strip()]
+            
+            # Create documents with sources (no scores available after reranking)
+            documents = []
+            for i, text in enumerate(document_texts[:request.top_k]):
+                doc = RetrievedDocument(
+                    text=text,
+                    source=sources[i] if i < len(sources) else "unknown",
+                    score=None,  # Scores not available with LLM processing
+                    metadata={"reranked": request.use_reranking, "enhanced": request.use_query_enhancer}
+                )
+                documents.append(doc)
+        
+        return RetrievalResponse(
+            query=request.query,
+            documents=documents,
+            total_retrieved=len(documents)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Retrieval error: {str(e)}"
+        )
 
 
 # ===== INGESTION ROUTES =====

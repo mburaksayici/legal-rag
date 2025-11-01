@@ -82,6 +82,46 @@ class SimpleQdrantRetriever:
 					sources.add(source)
 				
 		return "\n\n".join(context_parts), list(sources)
+	
+	def retrieve_detailed(self, query: str, top_k: int = 6) -> List[dict]:
+		"""Retrieve relevant chunks with detailed information including scores and metadata.
+		
+		Returns:
+			List of dicts with keys: text, source, score, metadata
+		"""
+		self._ensure_connection()
+		
+		if self.retriever is None:
+			return []
+			
+		# Update top_k if different
+		self.retriever.similarity_top_k = top_k
+		
+		# Use the retriever
+		nodes = self.retriever.retrieve(query)
+		
+		# Extract detailed information from nodes
+		results = []
+		for node in nodes:
+			doc_info = {
+				"text": node.text,
+				"source": "unknown",
+				"score": None,
+				"metadata": {}
+			}
+			
+			# Extract score if available
+			if hasattr(node, 'score') and node.score is not None:
+				doc_info["score"] = float(node.score)
+			
+			# Extract metadata
+			if hasattr(node, 'metadata') and node.metadata:
+				doc_info["metadata"] = dict(node.metadata)
+				doc_info["source"] = node.metadata.get("source", "unknown")
+			
+			results.append(doc_info)
+		
+		return results
 		
 	def is_available(self) -> bool:
 		"""Check if Qdrant collection exists and has data."""

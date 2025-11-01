@@ -19,3 +19,21 @@ class LegacyChatRequest(BaseModel):
 class LegacySessionResponse(BaseModel):
     id: str
     messages: List[str] = []
+
+# Retrieval schemas
+class RetrievalRequest(BaseModel):
+    query: str
+    top_k: int = 10
+    use_query_enhancer: bool = False
+    use_reranking: bool = False
+
+class RetrievedDocument(BaseModel):
+    text: str
+    source: str
+    score: Optional[float] = None
+    metadata: Dict[str, Any] = {}
+
+class RetrievalResponse(BaseModel):
+    query: str
+    documents: List[RetrievedDocument]
+    total_retrieved: int

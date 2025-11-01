@@ -358,4 +358,32 @@ Celery runs on different container, connected to same redis (not same queue) wit
 
 As explained in Vector DB section, Qdrant offers the capability of the search. Although local implementations are pretty easy/customizable, it may not be scalable for big data.
 
+### Query Enhancer 
 
+"Why Snowflake stocks are down?" , could be a question for a financial RAG system, as I've faced at [Financial RAG Project](https://github.com/mburaksayici/FinancialAdvisorGPT/). 
+
+An agent that does Google Search or searching the news, couldn't find anything within the first hours. User's query needs to be converted into 
+
+- "snowflake stock down reason"
+- "snowflake breaking news"
+
+That would give you the reason : [Slootman, CEO of Snowflake has retired.](https://www.investopedia.com/snowflake-stock-plunges-after-company-names-new-ceo-issues-disappointing-guidance-8601946)
+
+For the reason I added query enhancer with Crew AI. 
+
+### Reranking
+
+The reason RAG projects require reranking:
+
+- Embedding models trained to find similarity between queries->answers, sometimes text<->text . This doesn't mean retrieved documents are answering to the query.  
+- Embedding models, by their nature, aggregates query tokens, embeds them into [no_token, embedding_size], then aggregates into single vector by pooling or etc. 
+- Aforementioned practise allows Vector Search to retrieve similar docs (and if you think carefully, distinct feature between sparse methods such as TF-IDF), however, compressed embeddings loses a. relation between tokens b. Time series features of a text.
+- LLMs on the other doesn't compress token into single vector dimension, read it all and read it sequentially, preserving historical meaning.
+
+In small systems, like I used in career.io/interview-prep was similar to simple BM25 + LLM reranking.
+
+There are reranker models trained for that purpose, depending on the cost+performance tradeoffs you can either use reranker model or use simple LLMs. 
+
+For the project I created reranking agent that retrieves documents, feeds into LLM. 
+
+The endpoint to test, is the "retrieve" endpoint that you can toggle on-off the reranking and query enhancer.

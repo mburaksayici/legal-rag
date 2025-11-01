@@ -7,8 +7,10 @@ from src.embeddings.base import BaseEmbedding as CustomBaseEmbedding
 
 
 class RetrievalCrew:
-	def __init__(self, embedding: CustomBaseEmbedding, use_query_enhancer: bool = True):
-		self.retrieval_agent_obj = RetrievalAgent(embedding=embedding, use_query_enhancer=use_query_enhancer)
+	def __init__(self, embedding: CustomBaseEmbedding, use_query_enhancer: bool = True, use_reranking: bool = True):
+		self.use_query_enhancer = use_query_enhancer
+		self.use_reranking = use_reranking
+		self.retrieval_agent_obj = RetrievalAgent(embedding=embedding)
 		self.crew = Crew(
 			agents=[self.retrieval_agent_obj.agent],
 			tasks=[self._create_task()],
@@ -27,8 +29,12 @@ At the end, provide citations in the format: [Source: <filename>] for each sourc
 
 	def answer_with_citations(self, question: str) -> str:
 		"""Simple function: get question, retrieve, return answer with citations."""
-		# Retrieve context and sources
-		context_text, sources = self.retrieval_agent_obj.retrieve(question)
+		# Retrieve context and sources with optional enhancement/reranking
+		context_text, sources = self.retrieval_agent_obj.retrieve(
+			question=question,
+			use_query_enhancer=self.use_query_enhancer,
+			use_reranking=self.use_reranking
+		)
 		
 		# Format citations
 		citations = "\n\nCitations:\n" + "\n".join([f"[Source: {s}]" for s in sources]) if sources else ""

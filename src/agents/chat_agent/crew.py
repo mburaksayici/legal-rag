@@ -17,14 +17,12 @@ class ChatCrew:
 		if embedding is None:
 			embedding = data_preprocess_semantic_pipeline.embedding
 		
-		# Initialize retrieval agent with query enhancement and reranking
+		# Initialize retrieval agent (agents initialized but not used unless requested in retrieve())
 		self.retrieval_agent = None
+		self.use_query_enhancer = use_query_enhancer
+		self.use_reranking = use_reranking
 		if embedding is not None:
-			self.retrieval_agent = RetrievalAgent(
-				embedding=embedding,
-				use_query_enhancer=use_query_enhancer,
-				use_reranking=use_reranking
-			)
+			self.retrieval_agent = RetrievalAgent(embedding=embedding)
 		
 		self.crew = Crew(
 			agents=[self.agent.agent],
@@ -43,7 +41,11 @@ class ChatCrew:
 		sources = []
 		if self.retrieval_agent is not None:
 			try:
-				context_text, sources = self.retrieval_agent.retrieve(question)
+				context_text, sources = self.retrieval_agent.retrieve(
+					question=question,
+					use_query_enhancer=self.use_query_enhancer,
+					use_reranking=self.use_reranking
+				)
 				if context_text:
 					retrieved_context = f"Retrieved Context:\n{context_text}"
 					print(f"Retrieved {len(sources)} reranked sources for chat")
