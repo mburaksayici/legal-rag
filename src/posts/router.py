@@ -16,7 +16,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-@router.post("/ingest")
+@router.post("/ingest", tags=["ingestion"])
 def ingest(request: IngestFolderRequest):
     """
     Legacy ingest endpoint - now redirects to Celery-based ingestion.
@@ -37,7 +37,7 @@ def ingest(request: IngestFolderRequest):
         "message": "Ingestion started asynchronously. Use /ingestion/status/{job_id} to check progress."
     }
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, tags=["chat"])
 async def chat(request: ChatRequest):
     """Chat endpoint for sending messages using chat agent with session management."""
     try:
@@ -76,7 +76,7 @@ async def chat(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
-@router.get("/sessions/{session_id}", response_model=SessionResponse)
+@router.get("/sessions/{session_id}", response_model=SessionResponse, tags=["chat"])
 async def get_session(session_id: str):
     """Get session by id - loads from MongoDB to Redis if needed"""
     try:
@@ -95,7 +95,7 @@ async def get_session(session_id: str):
 
 # ===== INGESTION ROUTES =====
 
-@router.post("/ingestion/start_job", response_model=IngestionJobResponse)
+@router.post("/ingestion/start_job", response_model=IngestionJobResponse, tags=["ingestion"])
 async def start_ingestion_job(request: IngestionJobRequest):
     """
     Start a new document ingestion job for a folder using fan-out pattern.
@@ -121,7 +121,7 @@ async def start_ingestion_job(request: IngestionJobRequest):
         )
 
 
-@router.post("/ingestion/start_single_file", response_model=IngestionJobResponse)
+@router.post("/ingestion/start_single_file", response_model=IngestionJobResponse, tags=["ingestion"])
 async def start_single_file_ingestion(request: SingleFileIngestionRequest):
     """
     Start a new document ingestion job for a single file.
@@ -147,7 +147,7 @@ async def start_single_file_ingestion(request: SingleFileIngestionRequest):
         )
 
 
-@router.get("/ingestion/status/{job_id}", response_model=TaskProgress)
+@router.get("/ingestion/status/{job_id}", response_model=TaskProgress, tags=["ingestion"])
 async def get_ingestion_status(job_id: str):
     """
     Get the current status and progress of an ingestion job.
@@ -204,7 +204,7 @@ async def get_ingestion_status(job_id: str):
         )
 
 
-@router.get("/ingestion/jobs")
+@router.get("/ingestion/jobs", tags=["ingestion"])
 async def list_active_ingestion_jobs():
     """
     List all active ingestion jobs (for debugging/monitoring purposes).
@@ -235,4 +235,60 @@ async def list_active_ingestion_jobs():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list active jobs: {str(e)}"
+        )
+
+
+@router.post("/ingestion/sync", tags=["ingestion"])
+def sync_ingest_single_file(request: SingleFileIngestionRequest):
+    """
+    Synchronous single file ingestion for debugging purposes.
+    Use this endpoint to set breakpoints and debug processing speed.
+    
+    NOTE: This is a blocking operation - the request will not return until
+    processing is complete. Use async endpoints for production workloads.
+    """
+    import time
+    import os
+    breakpoint()
+    start_time = time.time()
+    filename = os.path.basename(request.file_path)
+    
+    try:
+        # Check if file exists
+        if not os.path.exists(request.file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"File not found: {request.file_path}"
+            )
+        
+        # Process the document synchronously using the pipeline
+        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        breakpoint()
+        result = data_preprocess_semantic_pipeline.run_single_doc(request.file_path)
+        
+        processing_time = time.time() - start_time
+        
+        return {
+            "status": "completed",
+            "file_path": request.file_path,
+            "filename": filename,
+            "success": result.get("success", False),
+            "processing_time_seconds": round(processing_time, 3),
+            "character_count": result.get("character_count", 0),
+            "chunk_count": result.get("chunk_count", 0),
+            "node_count": result.get("node_count", 0),
+            "error": result.get("error") if not result.get("success") else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = time.time() - start_time
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Failed to process file: {str(e)}",
+                "file_path": request.file_path,
+                "processing_time_seconds": round(processing_time, 3)
+            }
         )
