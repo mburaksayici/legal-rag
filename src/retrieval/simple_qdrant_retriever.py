@@ -2,27 +2,40 @@ from typing import List, Tuple, Optional
 from llama_index.core import VectorStoreIndex  # type: ignore
 from src.embeddings.base import BaseEmbedding as CustomBaseEmbedding
 from src.retrieval.embedding_adapter import LlamaIndexEmbeddingAdapter
-from src.vectordb.chromadb.manager import ChromaDBManager
-from src.chromadb.config import db_path
+from src.vectordb.qdrant_db.manager import QdrantManager
+from src.vectordb.qdrant_db.config import (
+	qdrant_host as default_qdrant_host,
+	qdrant_port as default_qdrant_port,
+	collection_name as default_collection_name
+)
 
 
-class SimpleChromaDBRetriever:
-	"""LlamaIndex-based retriever that works with existing ChromaDB data."""
+class SimpleQdrantRetriever:
+	"""LlamaIndex-based retriever that works with existing Qdrant data."""
 	
-	def __init__(self, embedding: CustomBaseEmbedding, chromadb_db_path: str = None, collection_name: str = "rag_docs"):
+	def __init__(
+		self,
+		embedding: CustomBaseEmbedding,
+		qdrant_host: str = None,
+		qdrant_port: int = None,
+		collection_name: str = None
+	):
 		self.embedding = embedding
-		self.chromadb_db_path = chromadb_db_path or db_path
-		self.collection_name = collection_name
+		self.qdrant_host = qdrant_host if qdrant_host is not None else default_qdrant_host
+		self.qdrant_port = qdrant_port if qdrant_port is not None else default_qdrant_port
+		self.collection_name = collection_name if collection_name is not None else default_collection_name
 		
-		# Initialize ChromaDB manager ONCE
-		self.chroma_manager = ChromaDBManager(
-			db_path=self.chromadb_db_path,
+		# Initialize Qdrant manager ONCE
+		self.qdrant_manager = QdrantManager(
+			host=self.qdrant_host,
+			port=self.qdrant_port,
 			collection_name=self.collection_name
 		)
 		
 		# Get reusable components
-		self.collection = self.chroma_manager.get_collection()
-		self.vector_store = self.chroma_manager.get_vector_store()
+		self.collection_name = self.qdrant_manager.get_collection()
+		self.vector_store = self.qdrant_manager.get_vector_store()
+		self.client = self.qdrant_manager.get_client()
 		self.embed_adapter = LlamaIndexEmbeddingAdapter(self.embedding)
 		
 		self.index = None
@@ -71,13 +84,15 @@ class SimpleChromaDBRetriever:
 		return "\n\n".join(context_parts), list(sources)
 		
 	def is_available(self) -> bool:
-		"""Check if ChromaDB collection exists and has data."""
+		"""Check if Qdrant collection exists and has data."""
 		self._ensure_connection()
-		if self.collection is None or self.retriever is None:
+		if self.retriever is None:
 			return False
 			
 		try:
-			count = self.collection.count()
-			return count > 0
+			# Check collection info
+			collection_info = self.client.get_collection(self.collection_name)
+			return collection_info.points_count > 0
 		except Exception:
 			return False
+

@@ -68,7 +68,11 @@ All routes are organized in `src/posts/router.py` for clean architecture:
 ### Vector DB
 Previously have used ChromaDB local, Pinecone Cloud. 
 
-Going with Milvus, because I love his CTO, he moved to VoyageAI later on and then company acquired by MongoDB.
+** I have changed DB choice 3 times because **
+
+1. First attempted Milvus, because I love his CTO, he moved to VoyageAI later on and then company acquired by MongoDB. However I've read it has limited capability on free-oss tier.
+2. Switched to ChromaDB for local tests, was about to keep it until I hit to celery task deadlocks reading from local disk which is obvious.
+3. Want to test hybrid/fusion scoring that combines BM25 + dense search, Qdrant offers that, so I set up a standalone Qdrant container. 
 
 
 - **Scaling:** Use APIs when you don’t want to deal with scaling. For small projects, a self-hosted setup can be sufficient.  
@@ -102,7 +106,7 @@ Milvus (by Zilliz) recommends choosing a **vector index** based on data size and
 | 20 GB – 200 GB | **Hybrid (HNSW_SQ, IVF_PQ)** | Balances accuracy and compression |
 | 200 GB+ | **Disk-based (DiskANN)** | Optimized for large-scale vector data stored on disk |
 
----
+I'll use the database default, HNSW, will work as good as FLAT on small data.
 
 #### Assumptions for Estimation
 
@@ -110,11 +114,15 @@ Milvus (by Zilliz) recommends choosing a **vector index** based on data size and
 - **1 page = 500 words**  
 - **15 words = 1 sentence**  
 - **1 chunk = 3 sentences**
+- **1 PDF = 111 chunks**
 
 Thus,  
-> 1 chunk = 45 words
+- **1 chunk = 512 × 4 = 2 048 bytes ≈ 2 KB (unquantized float32)** 
+- **1 PDF = 111*2KB = 222 KB**
+- **100k PDF = 22 GB** 
 
----
+Could be a rough estimate to choose indexing. 
+
 
 ## Approximate Storage Estimation
 
@@ -125,14 +133,11 @@ Thus,
 | 50,000 | 10 | 500 | 250 M | 5.56 M | 4 KB | ≈ **22 GB** |
 | 500,000 | 10 | 500 | 2.5 B | 55.6 M | 4 KB | ≈ **222 GB** |
 
----
 
 - For **≤ 2 GB**, a simple IVF index is efficient.  
 - For **10–200 GB**, prefer HNSW or hybrid indexes for faster queries.  
 - For **200 GB+**, DiskANN or Milvus Disk Index becomes necessary.  
 - Use heuristics above to plan scaling for document-heavy RAG systems.
-
----
 
 
 ### Tech Stack Options for the requirements
@@ -158,9 +163,9 @@ For such a project, those are the general options I've seen people are using suc
 - **Celery** → Task queue for background ingestion and embedding jobs  
 
 
-#### Milvus + Elasticsearch + MongoDB
+#### Milvus (or other) + Elasticsearch + MongoDB
 
-- **Milvus** → Vector Database  
+- **Milvus (or other)** → Vector Database  
 - **Elasticsearch** → Keyword + hybrid search (BM25) and optional caching layer for query results  
 - **MongoDB** → Persistent storage for metadata and history  
 - **FastAPI** → API layer  
@@ -218,8 +223,6 @@ Artifacts:
 - Zip: `assets/datasets.zip`
 - Extracted: `assets/dataset/`
 - PDFs output: `assets/pdfs/`
-
-
 
 
 ### Chunking Strategy 
@@ -349,3 +352,10 @@ Mongodb Atlas (heavily used it before, quite liked it) can be used for tracking,
 3. Ingest/status api to track status of a job. 
 
 Celery runs on different container, connected to same redis (not same queue) with the conversation queue. 
+
+
+### Hybrid + Vector Search
+
+As explained in Vector DB section, Qdrant offers the capability of the search. Although local implementations are pretty easy/customizable, it may not be scalable for big data.
+
+

@@ -1,72 +1,71 @@
 from llama_index.core import VectorStoreIndex  # type: ignore
-from llama_index.core.schema import TextNode, Document  # type: ignore
-from llama_index.vector_stores.chroma import ChromaVectorStore  # type: ignore
+from llama_index.core.schema import TextNode  # type: ignore
+from llama_index.core.storage.storage_context import StorageContext  # type: ignore
 from typing import List
-import chromadb  # type: ignore
+import os
 
 from .embedding_adapter import LlamaIndexEmbeddingAdapter
 from src.embeddings.base import BaseEmbedding as CustomBaseEmbedding
-from src.chromadb.config import db_path
+from src.vectordb.qdrant_db.manager import QdrantManager
+from src.vectordb.qdrant_db.config import (
+	qdrant_host as default_qdrant_host,
+	qdrant_port as default_qdrant_port,
+	collection_name as default_collection_name
+)
 
 
 class StorageSetup:
-	"""Set up LlamaIndex with ChromaDB backend - no StorageContext needed."""
+	"""Set up LlamaIndex with Qdrant backend."""
 
 	def __init__(
 		self,
 		embedding: CustomBaseEmbedding,
-		chromadb_db_path: str = db_path,
-		collection_name: str = "rag_docs",
+		qdrant_host: str = default_qdrant_host,
+		qdrant_port: int = default_qdrant_port,
+		collection_name: str = default_collection_name,
 	):
 		self.embedding = embedding
-		self.chromadb_db_path = chromadb_db_path or db_path
+		self.qdrant_host = qdrant_host
+		self.qdrant_port = qdrant_port
 		self.collection_name = collection_name
+		
+		# Initialize Qdrant manager ONCE
+		self.qdrant_manager = QdrantManager(
+			host=self.qdrant_host,
+			port=self.qdrant_port,
+			collection_name=self.collection_name
+		)
+		
+		# Get reusable components from manager
+		self.vector_store = self.qdrant_manager.get_vector_store()
+		self.storage_context = self.qdrant_manager.get_storage_context()
+		self.client = self.qdrant_manager.get_client()
+		self.embed_adapter = self.create_embedding_adapter()
 
 	def create_index_from_nodes(
 		self, leaf_nodes: List[TextNode]
 	) -> VectorStoreIndex:
-		"""Create VectorStoreIndex directly from nodes - no StorageContext."""
-		import os
-		
-		# Use local ChromaDB client (path must be a directory, not a file)
-		# Ensure directory exists
-		os.makedirs(self.chromadb_db_path, exist_ok=True)
-		chroma_client = chromadb.PersistentClient(path=self.chromadb_db_path)
-		chroma_collection = chroma_client.get_or_create_collection(name=self.collection_name)
-		vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-
-		# Create embedding adapter
-		embed_adapter = self.create_embedding_adapter()
-		
-		# Create index directly with vector store and embedding model
+		"""Create and persist VectorStoreIndex from nodes."""
+		# Create index with nodes using pre-initialized storage context
 		index = VectorStoreIndex(
 			nodes=leaf_nodes,
-			embed_model=embed_adapter,
-			vector_store=vector_store
+			embed_model=self.embed_adapter,
+			storage_context=self.storage_context
 		)
+		
+		# Qdrant persists automatically, no need to call persist()
 		return index
 
 	def load_existing_index(self) -> VectorStoreIndex:
-		"""Load existing ChromaDB as VectorStoreIndex."""
-		import os
-		
-		# Ensure directory exists
-		os.makedirs(self.chromadb_db_path, exist_ok=True)
-		chroma_client = chromadb.PersistentClient(path=self.chromadb_db_path)
-		
+		"""Load existing index from Qdrant."""
 		try:
-			chroma_collection = chroma_client.get_collection(name=self.collection_name)
-			vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-			embed_adapter = self.create_embedding_adapter()
-			
-			# Create index from existing vector store
+			# Load index from existing Qdrant collection
 			index = VectorStoreIndex.from_vector_store(
-				vector_store=vector_store,
-				embed_model=embed_adapter
+				vector_store=self.vector_store,
+				embed_model=self.embed_adapter
 			)
 			return index
 		except Exception:
-			# Collection doesn't exist
 			return None
 
 	def create_embedding_adapter(self):

@@ -1,4 +1,5 @@
 from typing import List, Dict
+import uuid
 from llama_index.core.schema import TextNode, Document  # type: ignore
 from src.chunking.schemas import ChunkItem
 
@@ -22,13 +23,13 @@ class NodeBuilder:
 		parent_docs: List[Document] = []
 		source_to_doc_id: Dict[str, str] = {}
 
-		# Group chunks by source and assign doc_id
+		# Group chunks by source and assign UUID-based doc_id for Qdrant compatibility
 		sources_seen = set()
 		for chunk in chunks:
 			source = chunk.source
 			if source not in sources_seen:
 				sources_seen.add(source)
-				doc_id = f"doc_{len(sources_seen)}"
+				doc_id = str(uuid.uuid4())  # Use UUID instead of string for Qdrant
 				source_to_doc_id[source] = doc_id
 
 		# Create parent documents
@@ -44,11 +45,11 @@ class NodeBuilder:
 		# Create leaf nodes with parent relationships
 		for idx, chunk in enumerate(chunks):
 			source = chunk.source
-			doc_id = source_to_doc_id.get(source, f"doc_unknown")
+			doc_id = source_to_doc_id.get(source, str(uuid.uuid4()))
 			
 			leaf_node = TextNode(
 				text=chunk.text,
-				id_=f"chunk_{doc_id}_{idx}",
+				id_=str(uuid.uuid4()),  # Use UUID instead of string for Qdrant
 				parent_id=doc_id,
 			)
 			# Store metadata

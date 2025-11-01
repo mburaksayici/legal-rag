@@ -166,23 +166,14 @@ def ingest_documents_task(self, folder_path: str, file_types: List[str] = None):
         group_result = subtask_group.apply_async()
         logger.info(f"🔶 [Master {job_id}] Subtasks scheduled with group ID: {group_result.id}")
 
-        # Schedule a separate finalize task to monitor completion and build the index
-        # This runs independently and polls the group result without blocking workers
-        logger.info(f"🔶 [Master {job_id}] Scheduling finalize task...")
-        finalize_task = finalize_ingestion_task.apply_async(
-            args=[group_result.id, job_id, folder_path, start_time, total_files],
-            countdown=5  # Start checking after 5 seconds
-        )
-
         logger.info(f"✅ [Master {job_id}] All subtasks scheduled successfully")
-        logger.info(f"✅ [Master {job_id}] Finalize task ID: {finalize_task.id}")
+        logger.info(f"💡 [Master {job_id}] Each subtask will write to Qdrant independently")
 
         return {
             "job_id": job_id,
             "status": "processing",
             "total_files": total_files,
-            "group_id": group_result.id,
-            "finalize_task_id": finalize_task.id
+            "group_id": group_result.id
         }
         
     except Exception as e:
@@ -190,93 +181,6 @@ def ingest_documents_task(self, folder_path: str, file_types: List[str] = None):
         logger.error(f"❌ [Master {job_id}] {error_message}")
         logger.error(f"❌ [Master {job_id}] Exception type: {type(e).__name__}")
         logger.error(f"❌ [Master {job_id}] Stack trace:\n{traceback.format_exc()}")
-        progress.set_failed(error_message)
-        raise Ignore()
-
-
-@celery_app.task(bind=True)
-def finalize_ingestion_task(self, group_result_id: str, job_id: str, folder_path: str, start_time: float, total_files: int):
-    """
-    Monitor group completion and finalize ingestion without blocking workers.
-    Polls the group result asynchronously and reschedules itself if not ready.
-    """
-    from celery.result import GroupResult
-    
-    finalize_task_id = self.request.id
-    logger.info(f"🔷 [Finalize {finalize_task_id}] Checking group completion for job {job_id}")
-    logger.info(f"🔷 [Finalize {finalize_task_id}] Group result ID: {group_result_id}")
-    
-    progress = ProgressTracker(job_id)
-    group_result = GroupResult.restore(group_result_id)
-
-    try:
-        # Check if all subtasks are complete (non-blocking check)
-        if not group_result.ready():
-            # Not ready yet - reschedule this task to check again in 10 seconds
-            logger.info(f"⏳ [Finalize {finalize_task_id}] Group not ready yet, rescheduling in 10s...")
-            finalize_ingestion_task.apply_async(
-                args=[group_result_id, job_id, folder_path, start_time, total_files],
-                countdown=10
-            )
-            return {"status": "waiting", "job_id": job_id}
-
-        # All subtasks complete - collect results (non-blocking since ready() is True)
-        logger.info(f"✅ [Finalize {finalize_task_id}] All subtasks complete, collecting results...")
-        results = group_result.results
-        logger.info(f"✅ [Finalize {finalize_task_id}] Collected {len(results)} results")
-        
-        successful_files = sum(1 for result in results if isinstance(result, dict) and result.get("success", False))
-        failed_files = total_files - successful_files
-        total_characters = sum(result.get("character_count", 0) for result in results if isinstance(result, dict))
-
-        logger.info(f"📊 [Finalize {finalize_task_id}] Results summary: {successful_files} successful, {failed_files} failed")
-        logger.info(f"📊 [Finalize {finalize_task_id}] Total characters processed: {total_characters:,}")
-
-        progress.update_progress(
-            total_documents=total_files,
-            processed_documents=total_files,
-            successful_documents=successful_files,
-            failed_documents=failed_files,
-            current_file="Building search index from processed documents...",
-            status="indexing"
-        )
-
-        if successful_files > 0:
-            try:
-                logger.info(f"📊 [Finalize {finalize_task_id}] Building final search index from {successful_files} documents...")
-                logger.info(f"📊 [Finalize {finalize_task_id}] Folder path: {folder_path}")
-                data_preprocess_semantic_pipeline.run_folder(folder_path)
-                logger.info(f"✅ [Finalize {finalize_task_id}] Search index built successfully")
-            except Exception as e:
-                logger.error(f"⚠️ [Finalize {finalize_task_id}] Index building failed: {str(e)}")
-                logger.error(f"⚠️ [Finalize {finalize_task_id}] Stack trace:\n{traceback.format_exc()}")
-        else:
-            logger.warning(f"⚠️ [Finalize {finalize_task_id}] No successful files to index")
-
-        total_time = time.time() - start_time
-        logger.info(f"⏱️ [Finalize {finalize_task_id}] Total processing time: {total_time:.2f}s")
-        
-        progress.set_completed(successful_files, failed_files, total_time)
-
-        logger.info(f"🎉 [Finalize {finalize_task_id}] Job {job_id} completed!")
-        logger.info(f"🎉 [Finalize {finalize_task_id}] Final stats: {successful_files} successful, {failed_files} failed, {total_time:.2f}s")
-
-        return {
-            "job_id": job_id,
-            "status": "completed",
-            "total_files": total_files,
-            "successful_files": successful_files,
-            "failed_files": failed_files,
-            "total_time_seconds": total_time,
-            "total_characters_processed": total_characters,
-            "subtasks_completed": len(results)
-        }
-
-    except Exception as e:
-        error_message = f"Finalize ingestion failed: {str(e)}"
-        logger.error(f"❌ [Finalize {finalize_task_id}] {error_message}")
-        logger.error(f"❌ [Finalize {finalize_task_id}] Exception type: {type(e).__name__}")
-        logger.error(f"❌ [Finalize {finalize_task_id}] Stack trace:\n{traceback.format_exc()}")
         progress.set_failed(error_message)
         raise Ignore()
 

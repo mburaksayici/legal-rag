@@ -22,6 +22,7 @@ services:
     depends_on:
       - redis
       - mongodb
+      - qdrant
     networks:
       - saga-network
     restart: unless-stopped
@@ -48,6 +49,17 @@ services:
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
+    networks:
+      - saga-network
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
     networks:
       - saga-network
     restart: unless-stopped
@@ -100,6 +112,7 @@ services:
     depends_on:
       - redis
       - mongodb
+      - qdrant
     networks:
       - saga-network
     restart: unless-stopped
@@ -109,6 +122,7 @@ volumes:
   redis_data:
   mongodb_data:
   mongodb_config:
+  qdrant_data:
 
 networks:
   saga-network:

@@ -58,7 +58,7 @@ async def chat(request: ChatRequest):
         # Generate response using existing ChatCrew
         from src.agents.chat_agent.crew import ChatCrew
         crew = ChatCrew()
-        answer = crew.chat(question=request.message, context=None)
+        answer, sources = crew.chat(question=request.message, context=None)
         
         # Add assistant response to session
         session = await session_service.add_message_to_session(
@@ -70,6 +70,7 @@ async def chat(request: ChatRequest):
         return ChatResponse(
             message=answer,
             session_id=session.id,
+            sources=sources,
             timestamp=datetime.utcnow()
         )
         
@@ -249,7 +250,7 @@ def sync_ingest_single_file(request: SingleFileIngestionRequest):
     """
     import time
     import os
-    breakpoint()
+
     start_time = time.time()
     filename = os.path.basename(request.file_path)
     
@@ -263,7 +264,7 @@ def sync_ingest_single_file(request: SingleFileIngestionRequest):
         
         # Process the document synchronously using the pipeline
         from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
-        breakpoint()
+
         result = data_preprocess_semantic_pipeline.run_single_doc(request.file_path)
         
         processing_time = time.time() - start_time

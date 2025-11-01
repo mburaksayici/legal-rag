@@ -3,24 +3,28 @@ from crewai import Crew  # type: ignore
 
 from .agent import ChatAgent
 from .tasks import create_chat_task
-from src.retrieval.simple_chromadb_retriever import SimpleChromaDBRetriever
+from src.agents.retrieval_agent.agent import RetrievalAgent
 from src.embeddings.base import BaseEmbedding as CustomBaseEmbedding
 from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
 
 
 class ChatCrew:
-	def __init__(self, embedding: Optional[CustomBaseEmbedding] = None):
-		"""Initialize ChatCrew. Uses simple ChromaDB retriever."""
+	def __init__(self, embedding: Optional[CustomBaseEmbedding] = None, use_query_enhancer: bool = True, use_reranking: bool = True):
+		"""Initialize ChatCrew. Uses RetrievalAgent with query enhancement and reranking."""
 		self.agent = ChatAgent()
 		
 		# Get embedding from pipeline if not provided
 		if embedding is None:
 			embedding = data_preprocess_semantic_pipeline.embedding
 		
-		# Initialize retriever - works with existing ChromaDB data
-		self.retriever = None
+		# Initialize retrieval agent with query enhancement and reranking
+		self.retrieval_agent = None
 		if embedding is not None:
-			self.retriever = SimpleChromaDBRetriever(embedding=embedding)
+			self.retrieval_agent = RetrievalAgent(
+				embedding=embedding,
+				use_query_enhancer=use_query_enhancer,
+				use_reranking=use_reranking
+			)
 		
 		self.crew = Crew(
 			agents=[self.agent.agent],
@@ -28,16 +32,21 @@ class ChatCrew:
 			verbose=True,
 		)
 
-	def chat(self, question: str, context: Optional[str] = None) -> str:
-		"""Run chat crew with question. Uses simple ChromaDB retriever for context."""
-		# Use simple retriever to get context for the question
+	def chat(self, question: str, context: Optional[str] = None) -> tuple[str, list[str]]:
+		"""Run chat crew with question. Uses RetrievalAgent with query enhancement and reranking.
+		
+		Returns:
+			tuple: (answer, sources) where sources is a list of document source identifiers
+		"""
+		# Use retrieval agent to get context for the question (with query enhancement and reranking)
 		retrieved_context = None
 		sources = []
-		if self.retriever is not None and self.retriever.is_available():
+		if self.retrieval_agent is not None:
 			try:
-				context_text, sources = self.retriever.retrieve(question)
+				context_text, sources = self.retrieval_agent.retrieve(question)
 				if context_text:
 					retrieved_context = f"Retrieved Context:\n{context_text}"
+					print(f"Retrieved {len(sources)} reranked sources for chat")
 			except Exception as e:
 				# If retrieval fails, continue without context
 				print(f"Warning: Retrieval failed: {e}")
@@ -50,10 +59,6 @@ class ChatCrew:
 		result = self.crew.kickoff(inputs=inputs)
 		answer = str(result)
 		
-		# Append citations if sources were retrieved
-		if sources:
-			citations = "\n\n---\n**Citations:**\n" + "\n".join([f"- {source}" for source in sources])
-			answer += citations
-		
-		return answer
+		# Return answer and sources separately (don't append to answer text)
+		return answer, sources
 

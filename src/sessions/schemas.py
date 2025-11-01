@@ -13,6 +13,7 @@ class ChatResponse(BaseModel):
     """Chat response schema"""
     message: str
     session_id: str
+    sources: List[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
