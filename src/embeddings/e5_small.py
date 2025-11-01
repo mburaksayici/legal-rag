@@ -1,3 +1,4 @@
+import torch
 import torch.nn.functional as F
 from torch import Tensor
 from transformers import AutoTokenizer, AutoModel
@@ -13,6 +14,7 @@ class E5SmallEmbedding(BaseEmbedding):
         super().__init__(embedding_size=384, embedding_name=name, weights_path=weights_folder)
         self.model = None
         self.tokenizer = None
+        self.device = None
         self.is_loaded = False
 
     def load(self, weights_path: str = None):
@@ -24,6 +26,14 @@ class E5SmallEmbedding(BaseEmbedding):
         os.makedirs(weights_path, exist_ok=True)
         self.tokenizer = AutoTokenizer.from_pretrained(self.embedding_name, cache_dir=weights_path)
         self.model = AutoModel.from_pretrained(self.embedding_name, cache_dir=weights_path)
+        
+        # Set device: CUDA > MPS > CPU
+        self.device = (
+            "cuda" if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available()
+            else "cpu"
+        )
+        self.model = self.model.to(self.device)
         self.is_loaded = True
 
     def embed(self, input_data: EmbeddingInput, *args, **kwargs) -> EmbeddingOutput:
@@ -31,6 +41,10 @@ class E5SmallEmbedding(BaseEmbedding):
             self.load()
         texts = input_data.documents
         batch_dict = self.tokenizer(texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+        
+        # Move input tensors to device
+        batch_dict = {k: v.to(self.device) for k, v in batch_dict.items()}
+        
         outputs = self.model(**batch_dict)
         embeddings = self.average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
         embeddings = F.normalize(embeddings, p=2, dim=1)

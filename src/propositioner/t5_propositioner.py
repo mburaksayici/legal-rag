@@ -2,6 +2,7 @@ import os
 import json
 from typing import List
 
+import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM  # type: ignore
 
 from .base import BasePropositioner
@@ -23,6 +24,7 @@ class T5Propositioner(BasePropositioner):
 		self.model_name = model_name
 		self.tokenizer = None
 		self.model = None
+		self.device = None
 		self.is_loaded = False
 		self.cache_dir = os.path.join(EMBEDDING_WEIGHTS_DIR, "propositioner", self.__class__.__name__.lower())
 
@@ -30,6 +32,14 @@ class T5Propositioner(BasePropositioner):
 		os.makedirs(self.cache_dir, exist_ok=True)
 		self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, cache_dir=self.cache_dir, use_fast=False)
 		self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name, cache_dir=self.cache_dir)
+		
+		# Set device: CUDA > MPS > CPU
+		self.device = (
+			"cuda" if torch.cuda.is_available()
+			else "mps" if torch.backends.mps.is_available()
+			else "cpu"
+		)
+		self.model = self.model.to(self.device)
 		self.is_loaded = True
 
 	def propose(self, request: ChunkRequest) -> ChunkResponse:
@@ -67,7 +77,7 @@ class T5Propositioner(BasePropositioner):
 				chunk_texts.append(" ".join(current))
 
 			aggregated_props: List[str] = []
-			device = self.model.device
+			device = self.device
 			for chunk_text in chunk_texts:
 				input_text = chunk_text
 				input_ids = self.tokenizer(input_text, return_tensors="pt").input_ids
