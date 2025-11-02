@@ -160,6 +160,90 @@ class SessionService:
             logger.error(f"Error listing active sessions: {e}")
             return []
     
+    async def list_all_sessions(self, limit: int = 100):
+        """
+        List all sessions from both Redis and MongoDB.
+        
+        Returns list of session summaries with:
+        - session_id
+        - created_at
+        - message_count
+        - last_activity
+        - source (redis or mongodb)
+        """
+        try:
+            sessions_list = []
+            
+            # Get sessions from MongoDB
+            if not mongodb_client._initialized:
+                await mongodb_client.initialize()
+            
+            # Query MongoDB for archived sessions
+            session_docs = await SessionDocument.find_all().sort("-metadata.created_at").limit(limit).to_list()
+            
+            for doc in session_docs:
+                # Get first user message
+                first_message = ""
+                for msg in doc.messages:
+                    if msg.role == MessageRole.USER:
+                        first_message = msg.content[:20] if msg.content else ""
+                        break
+                
+                sessions_list.append({
+                    "session_id": doc.session_id,
+                    "created_at": doc.metadata.created_at.isoformat(),
+                    "message_count": doc.metadata.message_count,
+                    "last_activity": doc.metadata.last_activity.isoformat(),
+                    "first_message": first_message,
+                    "source": "mongodb"
+                })
+            
+            # Try to get active sessions from Redis
+            # Note: This is a simplified implementation
+            # In production, you'd maintain a Redis set of active session IDs
+            try:
+                # Get all keys matching session pattern
+                pattern = "session:*"
+                keys = self.redis.client.keys(pattern)
+                
+                for key in keys[:limit]:
+                    # Keys are already decoded as strings (decode_responses=True in Redis client)
+                    session_id = key.replace("session:", "")
+                    session_data = self.redis.get_session(session_id)
+                    
+                    if session_data:
+                        # Check if already in list from MongoDB
+                        if not any(s["session_id"] == session_id for s in sessions_list):
+                            metadata = session_data.get("metadata", {})
+                            messages = session_data.get("messages", [])
+                            
+                            # Get first user message
+                            first_message = ""
+                            for msg in messages:
+                                if msg.get("role") == "user":
+                                    first_message = msg.get("content", "")[:20]
+                                    break
+                            
+                            sessions_list.append({
+                                "session_id": session_id,
+                                "created_at": metadata.get("created_at"),
+                                "message_count": metadata.get("message_count", 0),
+                                "last_activity": metadata.get("last_activity"),
+                                "first_message": first_message,
+                                "source": "redis"
+                            })
+            except Exception as redis_error:
+                logger.warning(f"Could not fetch Redis sessions: {redis_error}")
+            
+            # Sort by last_activity descending
+            sessions_list.sort(key=lambda x: x.get("last_activity", ""), reverse=True)
+            
+            return sessions_list[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error listing all sessions: {e}")
+            return []
+    
     async def cleanup_expired_sessions(self):
         """Background task to cleanup expired sessions"""
         # This would be implemented as a background task

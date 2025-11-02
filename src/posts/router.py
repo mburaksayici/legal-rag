@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
+import os
+from pathlib import Path
 from .schemas import IngestFolderRequest, RetrievalRequest, RetrievalResponse, RetrievedDocument
 from src.sessions.schemas import ChatRequest, ChatResponse, SessionResponse
 from src.sessions.service import session_service
@@ -521,4 +523,92 @@ async def get_evaluation_status(evaluation_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get evaluation status: {str(e)}"
+        )
+
+
+# ===== ASSETS ROUTES =====
+
+@router.get("/assets/list", tags=["assets"])
+async def list_assets(path: Optional[str] = None):
+    """
+    List folders and files in the assets directory.
+    
+    Args:
+        path: Optional subdirectory path within assets/ (e.g., "sample_pdfs")
+        
+    Returns:
+        Dictionary with:
+        - folders: List of folder names with file counts
+        - files: List of files in the current path (if applicable)
+        - current_path: Current path being listed
+    """
+    try:
+        # Base assets directory
+        base_assets_path = Path("assets")
+        
+        if not base_assets_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="Assets directory not found"
+            )
+        
+        # Construct full path
+        if path:
+            full_path = base_assets_path / path
+        else:
+            full_path = base_assets_path
+        
+        if not full_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Path not found: {path}"
+            )
+        
+        if not full_path.is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Path is not a directory: {path}"
+            )
+        
+        # List folders and files
+        folders = []
+        files = []
+        
+        for item in sorted(full_path.iterdir()):
+            if item.is_dir():
+                # Count files in directory (non-recursive for performance)
+                try:
+                    file_count = sum(1 for f in item.iterdir() if f.is_file())
+                    folders.append({
+                        "name": item.name,
+                        "file_count": file_count,
+                        "path": str(item.relative_to(base_assets_path))
+                    })
+                except PermissionError:
+                    folders.append({
+                        "name": item.name,
+                        "file_count": 0,
+                        "path": str(item.relative_to(base_assets_path))
+                    })
+            else:
+                files.append({
+                    "name": item.name,
+                    "size_bytes": item.stat().st_size,
+                    "path": str(item.relative_to(base_assets_path))
+                })
+        
+        return {
+            "current_path": str(full_path.relative_to(base_assets_path)) if path else ".",
+            "folders": folders,
+            "files": files[:100],  # Limit to first 100 files
+            "total_folders": len(folders),
+            "total_files": len(files)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list assets: {str(e)}"
         )

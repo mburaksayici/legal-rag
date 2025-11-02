@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from src.posts.router import router as posts_router
+from src.sessions.router import router as sessions_router
 from src.mongodb.client import mongodb_client
 from src.sessions.background_tasks import background_tasks
 
@@ -20,8 +21,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(posts_router)
+app.include_router(sessions_router)
 
-# All routes are now organized in src/posts/router.py
+# All routes are now organized in src/posts/router.py and src/sessions/router.py
 
 if __name__ == "__main__":
     import uvicorn
