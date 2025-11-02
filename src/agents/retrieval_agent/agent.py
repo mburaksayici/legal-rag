@@ -38,7 +38,7 @@ class RetrievalAgent:
 		use_query_enhancer: bool = False,
 		use_reranking: bool = False,
 		top_k: int = 10
-	) -> tuple[str, list]:
+	) -> list[dict]:
 		"""
 		Retrieve relevant chunks for a question with optional query enhancement and reranking.
 		
@@ -49,8 +49,14 @@ class RetrievalAgent:
 			top_k: Number of documents to return (default: 10)
 		
 		Returns:
-			Tuple of (context_text, sources_list)
+			List of dicts with keys: text, source, score, metadata
+			Note: Scores are only available when both use_query_enhancer and use_reranking are False
 		"""
+		# If no LLM features, just use direct retrieval with scores
+		if not use_query_enhancer and not use_reranking:
+			return self.retriever.retrieve(query=question, top_k=top_k)
+		
+		# Otherwise, use LLM features (query enhancement and/or reranking)
 		# Determine queries to search
 		queries_to_search = [question]  # Always include original
 		if use_query_enhancer:
@@ -63,9 +69,8 @@ class RetrievalAgent:
 				print(f"Query enhancement failed, using original query: {e}")
 				queries_to_search = [question]
 		
-		# Collect results from all queries using SimpleQdrantRetriever (pure vector DB)
-		all_context_parts = []
-		all_sources = []
+		# Collect results from all queries using SimpleQdrantRetriever
+		all_documents = []
 		seen_texts = set()  # To avoid duplicate content
 		
 		# If using reranking, retrieve more documents per query
@@ -75,46 +80,65 @@ class RetrievalAgent:
 			try:
 				# Retrieve more documents if we're going to rerank
 				per_query_k = max(4, (top_k // len(queries_to_search)) * per_query_multiplier)
-				context_text, sources = self.retriever.retrieve(search_query, top_k=per_query_k)
+				detailed_results = self.retriever.retrieve(query=search_query, top_k=per_query_k)
 				print(f"Retrieved {per_query_k} docs for query: {search_query[:50]}...")
 				
-				if context_text:
-					# Split context into parts and deduplicate
-					context_parts = context_text.split('\n\n')
-					for i, part in enumerate(context_parts):
-						part = part.strip()
-						if part and part not in seen_texts:
-							seen_texts.add(part)
-							all_context_parts.append(part)
-							# Track corresponding source for each document part
-							if i < len(sources):
-								all_sources.append(sources[i])
-							else:
-								all_sources.append("unknown")
+				# Deduplicate by text content
+				for doc in detailed_results:
+					if doc["text"] not in seen_texts:
+						seen_texts.add(doc["text"])
+						all_documents.append(doc)
 					
 			except Exception as e:
 				print(f"Retrieval failed for query '{search_query}': {e}")
 				continue
 		
+		if not all_documents:
+			return []
+		
 		# Apply reranking if enabled
-		if use_reranking and all_context_parts:
-			print(f"Reranking {len(all_context_parts)} documents using original query: {question}")
+		if use_reranking:
+			print(f"Reranking {len(all_documents)} documents using original query: {question}")
 			try:
+				# Extract texts and sources for reranking
+				texts = [doc["text"] for doc in all_documents]
+				sources = [doc["source"] for doc in all_documents]
+				
 				final_context, reranked_sources = self.reranker.rerank(
 					query=question,  # Use original question, not enhanced queries
-					documents=all_context_parts,
-					sources=all_sources,
+					documents=texts,
+					sources=sources,
 					top_k=top_k
 				)
 				print(f"Reranked to top {top_k} documents")
-				return final_context, reranked_sources
+				
+				# Convert reranked results back to detailed format (without scores)
+				reranked_texts = [doc.strip() for doc in final_context.split('\n\n') if doc.strip()]
+				results = []
+				for i, text in enumerate(reranked_texts[:top_k]):
+					results.append({
+						"text": text,
+						"source": reranked_sources[i] if i < len(reranked_sources) else "unknown",
+						"score": None,  # Scores not available after reranking
+						"metadata": {"enhanced": use_query_enhancer, "reranked": True}
+					})
+				return results
+				
 			except Exception as e:
 				print(f"Reranking failed, falling back to original order: {e}")
 				# Fallback to non-reranked results
 		
 		# If reranking is disabled or failed, use original ordering
-		final_context = "\n\n".join(all_context_parts[:top_k])  # Limit to top_k chunks total
-		final_sources = list(dict.fromkeys(all_sources[:top_k]))  # Deduplicate while preserving order
-		print(f"Final context (no reranking): {len(all_context_parts[:top_k])} documents")
-		return final_context, final_sources
+		results = all_documents[:top_k]
+		# Update metadata to indicate processing
+		for doc in results:
+			doc["score"] = None  # Clear scores when using query enhancement
+			doc["metadata"] = {"enhanced": use_query_enhancer, "reranked": False}
+		
+		print(f"Final results (no reranking): {len(results)} documents")
+		return results
+
+	def is_available(self) -> bool:
+		"""Check if the retriever is available."""
+		return self.retriever.is_available()
 

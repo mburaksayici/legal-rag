@@ -387,3 +387,18 @@ There are reranker models trained for that purpose, depending on the cost+perfor
 For the project I created reranking agent that retrieves documents, feeds into LLM. 
 
 The endpoint to test, is the "retrieve" endpoint that you can toggle on-off the reranking and query enhancer.
+
+#### Evaluation 
+
+For now, easiest way to evaluate without complex system, since I have shallow pdfs:
+
+1. I created one question per pdf
+2. I hit with an existing retrieve function, --beware I didn't run it on end result-- 
+3. Match if same pdf files are hit, giving me hit rate @ k. Calculate MRR on the order again check if retrieved pdf = relevant pdf.
+
+
+I may fix the logic later on, calculate matching on chunks rather than matching file paths, but since I have 1-2 pages of docs I thought it'll be fine for now. 
+
+Normally, I should record every file in mongodb, save ids of chunks, when I get the question from data loading pipeline I would need to save chunk_id  and match retrieved chunk id = relevant chunk id.
+
+Note : I've written extensive blog on [evaluation pipelines](https://mburaksayici.com/blog/2025/10/12/information-retrieval-1.html).

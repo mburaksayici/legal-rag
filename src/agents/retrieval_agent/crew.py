@@ -29,12 +29,20 @@ At the end, provide citations in the format: [Source: <filename>] for each sourc
 
 	def answer_with_citations(self, question: str) -> str:
 		"""Simple function: get question, retrieve, return answer with citations."""
-		# Retrieve context and sources with optional enhancement/reranking
-		context_text, sources = self.retrieval_agent_obj.retrieve(
+		# Retrieve documents with optional enhancement/reranking
+		detailed_results = self.retrieval_agent_obj.retrieve(
 			question=question,
 			use_query_enhancer=self.use_query_enhancer,
 			use_reranking=self.use_reranking
 		)
+		
+		if not detailed_results:
+			return "No relevant documents found to answer the question."
+		
+		# Extract context and sources from detailed results
+		context_parts = [doc["text"] for doc in detailed_results]
+		sources = list(dict.fromkeys([doc["source"] for doc in detailed_results]))  # Deduplicate
+		context_text = "\n\n".join(context_parts)
 		
 		# Format citations
 		citations = "\n\nCitations:\n" + "\n".join([f"[Source: {s}]" for s in sources]) if sources else ""

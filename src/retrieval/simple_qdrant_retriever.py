@@ -57,34 +57,12 @@ class SimpleQdrantRetriever:
 				# Collection might be empty or have issues
 				return
 				
-	def retrieve(self, query: str, top_k: int = 6, auto_merge: bool = True) -> Tuple[str, List[str]]:
-		"""Retrieve relevant chunks using LlamaIndex retriever."""
-		self._ensure_connection()
-		
-		if self.retriever is None:
-			return "", []
-			
-		# Update top_k if different
-		self.retriever.similarity_top_k = top_k
-		
-		# Use the retriever (base retriever without auto-merging for now)
-		nodes = self.retriever.retrieve(query)
-		
-		# Extract context and sources from nodes
-		context_parts = []
-		sources = set()
-		
-		for node in nodes:
-			context_parts.append(node.text)
-			if hasattr(node, 'metadata') and node.metadata:
-				source = node.metadata.get("source", "unknown")
-				if source != "unknown":
-					sources.add(source)
-				
-		return "\n\n".join(context_parts), list(sources)
-	
-	def retrieve_detailed(self, query: str, top_k: int = 6) -> List[dict]:
+	def retrieve(self, query: str, top_k: int = 6) -> List[dict]:
 		"""Retrieve relevant chunks with detailed information including scores and metadata.
+		
+		Args:
+			query: The search query
+			top_k: Number of documents to retrieve (default: 6)
 		
 		Returns:
 			List of dicts with keys: text, source, score, metadata

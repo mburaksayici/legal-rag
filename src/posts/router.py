@@ -12,6 +12,13 @@ from src.distributed_task.schemas import (
     SingleFileIngestionRequest,
     TaskProgress
 )
+from src.evaluation.schemas import (
+    StartEvaluationRequest,
+    StartEvaluationResponse,
+    EvaluationStatusResponse,
+    EvaluationListResponse
+)
+from src.evaluation.service import EvaluationService
 from datetime import datetime
 
 router = APIRouter()
@@ -101,6 +108,7 @@ async def retrieve_documents(request: RetrievalRequest):
     try:
         # Import here to avoid circular dependencies
         from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        from src.agents.retrieval_agent.agent import RetrievalAgent
         
         # Get embedding from pipeline
         embedding = data_preprocess_semantic_pipeline.embedding
@@ -110,69 +118,33 @@ async def retrieve_documents(request: RetrievalRequest):
                 detail="Embedding model not initialized"
             )
         
-        # Check if we need detailed results with scores (only when no LLM features)
-        if not request.use_query_enhancer and not request.use_reranking:
-            # Use SimpleQdrantRetriever directly for detailed results with scores
-            from src.retrieval.simple_qdrant_retriever import SimpleQdrantRetriever
-            
-            retriever = SimpleQdrantRetriever(embedding=embedding)
-            
-            if not retriever.is_available():
-                raise HTTPException(
-                    status_code=503,
-                    detail="Vector database is not available or has no data"
-                )
-            
-            # Retrieve documents with detailed information including scores
-            detailed_results = retriever.retrieve_detailed(
-                query=request.query,
-                top_k=request.top_k
+        # Use RetrievalAgent for all cases
+        retrieval_agent = RetrievalAgent(embedding=embedding)
+        
+        if not retrieval_agent.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Vector database is not available or has no data"
             )
-            
-            # Convert to response format
-            documents = [
-                RetrievedDocument(
-                    text=doc["text"],
-                    source=doc["source"],
-                    score=doc["score"],
-                    metadata=doc["metadata"]
-                )
-                for doc in detailed_results
-            ]
-        else:
-            # Use RetrievalAgent with optional LLM features
-            from src.agents.retrieval_agent.agent import RetrievalAgent
-            
-            retrieval_agent = RetrievalAgent(embedding=embedding)
-            
-            # Retrieve using RetrievalAgent with optional features
-            context_text, sources = retrieval_agent.retrieve(
-                question=request.query,
-                use_query_enhancer=request.use_query_enhancer,
-                use_reranking=request.use_reranking,
-                top_k=request.top_k
+        
+        # Retrieve documents with optional query enhancement and reranking
+        detailed_results = retrieval_agent.retrieve(
+            question=request.query,
+            use_query_enhancer=request.use_query_enhancer,
+            use_reranking=request.use_reranking,
+            top_k=request.top_k
+        )
+        
+        # Convert to response format
+        documents = [
+            RetrievedDocument(
+                text=doc["text"],
+                source=doc["source"],
+                score=doc["score"],
+                metadata=doc["metadata"]
             )
-            
-            if not context_text:
-                return RetrievalResponse(
-                    query=request.query,
-                    documents=[],
-                    total_retrieved=0
-                )
-            
-            # Parse the context back into individual documents
-            document_texts = [doc.strip() for doc in context_text.split('\n\n') if doc.strip()]
-            
-            # Create documents with sources (no scores available after reranking)
-            documents = []
-            for i, text in enumerate(document_texts[:request.top_k]):
-                doc = RetrievedDocument(
-                    text=text,
-                    source=sources[i] if i < len(sources) else "unknown",
-                    score=None,  # Scores not available with LLM processing
-                    metadata={"reranked": request.use_reranking, "enhanced": request.use_query_enhancer}
-                )
-                documents.append(doc)
+            for doc in detailed_results
+        ]
         
         return RetrievalResponse(
             query=request.query,
@@ -387,4 +359,144 @@ def sync_ingest_single_file(request: SingleFileIngestionRequest):
                 "file_path": request.file_path,
                 "processing_time_seconds": round(processing_time, 3)
             }
+        )
+
+
+# ===== EVALUATION ROUTES =====
+
+@router.post("/evaluation/start", response_model=StartEvaluationResponse, tags=["evaluation"])
+async def start_evaluation(request: StartEvaluationRequest):
+    """
+    Start a new evaluation job to test retrieval system performance.
+    
+    Parameters:
+    - folder_path: Path to folder containing PDFs to evaluate
+    - top_k: Number of documents to retrieve (default: 10)
+    - use_query_enhancer: Enable query enhancement with LLM (default: False)
+    - use_reranking: Enable LLM-based reranking (default: False)
+    - num_questions_per_doc: Number of questions to generate per document (default: 1)
+    
+    Process:
+    1. Reads PDFs from the specified folder
+    2. Uses GPT-4o-mini to generate targeted questions from each PDF
+    3. Runs retrieval with the specified parameters
+    4. Stores results in MongoDB for metric calculation
+    
+    Returns evaluation_id that can be used to check status and results.
+    """
+    try:
+        # Get embedding from pipeline
+        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        
+        embedding = data_preprocess_semantic_pipeline.embedding
+        if embedding is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Embedding model not initialized"
+            )
+        
+        # Create evaluation service
+        eval_service = EvaluationService(embedding=embedding)
+        
+        # Start evaluation
+        response = await eval_service.start_evaluation(request)
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start evaluation: {str(e)}"
+        )
+
+
+@router.get("/evaluations", response_model=EvaluationListResponse, tags=["evaluation"])
+async def list_evaluations(limit: int = 50):
+    """
+    List all evaluations with their status and results.
+    
+    Args:
+        limit: Maximum number of evaluations to return (default: 50)
+        
+    Returns:
+        List of evaluations sorted by creation date (newest first)
+    """
+    try:
+        # Get embedding from pipeline
+        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        
+        embedding = data_preprocess_semantic_pipeline.embedding
+        if embedding is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Embedding model not initialized"
+            )
+        
+        # Create evaluation service
+        eval_service = EvaluationService(embedding=embedding)
+        
+        # List evaluations
+        evaluations = await eval_service.list_evaluations(limit=limit)
+        
+        return EvaluationListResponse(
+            evaluations=evaluations,
+            total=len(evaluations)
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list evaluations: {str(e)}"
+        )
+
+
+@router.get("/evaluation/{evaluation_id}", response_model=EvaluationStatusResponse, tags=["evaluation"])
+async def get_evaluation_status(evaluation_id: str):
+    """
+    Get the status and results of an evaluation.
+    
+    Args:
+        evaluation_id: The evaluation ID returned when starting the evaluation
+        
+    Returns:
+        Current status including:
+        - Status (pending, running, completed, failed)
+        - Retrieval parameters used
+        - Number of documents processed
+        - Results summary (hit_rate, MRR, etc.) if completed
+        - Error message if failed
+    """
+    try:
+        # Get embedding from pipeline
+        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        
+        embedding = data_preprocess_semantic_pipeline.embedding
+        if embedding is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Embedding model not initialized"
+            )
+        
+        # Create evaluation service
+        eval_service = EvaluationService(embedding=embedding)
+        
+        # Get evaluation status
+        status = await eval_service.get_evaluation_status(evaluation_id)
+        
+        if not status:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation not found: {evaluation_id}"
+            )
+        
+        return status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get evaluation status: {str(e)}"
         )

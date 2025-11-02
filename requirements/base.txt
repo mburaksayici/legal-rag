@@ -18,3 +18,4 @@ redis
 celery[redis]
 beanie
 motor
+PyPDF2

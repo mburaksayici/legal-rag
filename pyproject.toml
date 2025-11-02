@@ -34,4 +34,5 @@ dependencies = [
     "rapidocr>=3.4.2",
     "onnxruntime>=1.23.2",
     "easyocr>=1.7.2",
+    "pypdf2>=3.0.1",
 ]
