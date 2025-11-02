@@ -375,14 +375,25 @@ async def start_evaluation(request: StartEvaluationRequest):
     - use_query_enhancer: Enable query enhancement with LLM (default: False)
     - use_reranking: Enable LLM-based reranking (default: False)
     - num_questions_per_doc: Number of questions to generate per document (default: 1)
+    - source_evaluation_id: Optional - Reuse questions from this evaluation (mutually exclusive with question_group_id)
+    - question_group_id: Optional - Reuse questions from this question group (mutually exclusive with source_evaluation_id)
+    
+    Question Reuse (for comparing different retrieval configurations):
+    - If neither source_evaluation_id nor question_group_id is provided: Generate new questions
+    - If source_evaluation_id is provided: Reuse questions from that evaluation
+    - If question_group_id is provided: Reuse questions from that question group
+    - This allows fair comparison of different retrieval settings (e.g., with/without reranking)
     
     Process:
-    1. Reads PDFs from the specified folder
-    2. Uses GPT-4o-mini to generate targeted questions from each PDF
-    3. Runs retrieval with the specified parameters
-    4. Stores results in MongoDB for metric calculation
+    1. Loads or generates questions from PDFs
+    2. Runs retrieval with the specified parameters
+    3. Stores results in MongoDB for metric calculation
+    4. Groups evaluations by question_group_id for easy comparison
     
-    Returns evaluation_id that can be used to check status and results.
+    Returns:
+    - evaluation_id: Unique ID for this evaluation
+    - question_group_id: ID grouping this evaluation with others using same questions
+    - reused_questions: Whether existing questions were reused
     """
     try:
         # Get embedding from pipeline
@@ -405,6 +416,11 @@ async def start_evaluation(request: StartEvaluationRequest):
         
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -463,10 +479,16 @@ async def get_evaluation_status(evaluation_id: str):
     Returns:
         Current status including:
         - Status (pending, running, completed, failed)
+        - question_group_id: ID grouping evaluations with same questions
         - Retrieval parameters used
         - Number of documents processed
         - Results summary (hit_rate, MRR, etc.) if completed
+        - related_evaluation_ids: List of other evaluations using the same questions
         - Error message if failed
+        
+    Use related_evaluation_ids to find other evaluations with the same questions
+    but different retrieval parameters (e.g., comparing with/without reranking).
+    You can fetch each related evaluation individually using this endpoint.
     """
     try:
         # Get embedding from pipeline

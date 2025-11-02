@@ -3,7 +3,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from src.config import MONGODB_URL, MONGODB_DATABASE
 from src.sessions.models import SessionDocument
-from src.evaluation.models import EvaluationDocument, QuestionAnswerDocument
+from src.evaluation.models import (
+    EvaluationDocument, 
+    QuestionDocument, 
+    EvaluationResultDocument,
+    QuestionAnswerDocument  # Keep for backwards compatibility
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,7 +31,13 @@ class MongoDBClient:
             # Initialize Beanie with document models
             await init_beanie(
                 database=self._database,
-                document_models=[SessionDocument, EvaluationDocument, QuestionAnswerDocument]
+                document_models=[
+                    SessionDocument, 
+                    EvaluationDocument, 
+                    QuestionDocument,
+                    EvaluationResultDocument,
+                    QuestionAnswerDocument  # Keep for backwards compatibility
+                ]
             )
             
             self._initialized = True

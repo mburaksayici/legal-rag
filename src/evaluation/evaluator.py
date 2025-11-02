@@ -3,12 +3,13 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
+from uuid import uuid4
 
 from src.embeddings.base import BaseEmbedding
 from src.agents.retrieval_agent.agent import RetrievalAgent
 from src.data_preprocess_pipelines.simple_pdf_preprocess import SimplePDFPreprocess
 from .question_generator_agent import QuestionGeneratorAgent
-from .models import EvaluationDocument, QuestionAnswerDocument
+from .models import EvaluationDocument, QuestionDocument, EvaluationResultDocument
 from .metrics import calculate_all_metrics
 
 logger = logging.getLogger(__name__)
@@ -29,31 +30,34 @@ class Evaluator:
         self.pdf_processor = SimplePDFPreprocess()
         self.question_generator = QuestionGeneratorAgent()
     
-    def generate_questions_from_folder(
+    async def generate_and_store_questions(
         self,
         folder_path: str,
         num_per_doc: int = 1
-    ) -> List[Dict[str, Any]]:
+    ) -> tuple[str, List[QuestionDocument]]:
         """
-        Generate questions from all PDFs in a folder.
+        Generate questions from all PDFs in a folder and store them in database.
         
         Args:
             folder_path: Path to folder containing PDFs
             num_per_doc: Number of questions to generate per document
             
         Returns:
-            List of dicts with keys: question, ground_truth_text, source_path
+            Tuple of (question_group_id, list of QuestionDocument objects)
         """
         folder = Path(folder_path)
         
         if not folder.exists() or not folder.is_dir():
             raise ValueError(f"Invalid folder path: {folder_path}")
         
+        # Generate new question_group_id
+        question_group_id = str(uuid4())
+        
         # Find all PDF files
         pdf_files = list(folder.glob("*.pdf"))
         logger.info(f"Found {len(pdf_files)} PDF files in {folder_path}")
         
-        all_questions = []
+        question_documents = []
         
         for pdf_file in pdf_files:
             try:
@@ -73,13 +77,16 @@ class Evaluator:
                     num_questions=num_per_doc
                 )
                 
-                # Convert to dict format
+                # Create QuestionDocument objects
                 for qo in question_outputs:
-                    all_questions.append({
-                        "question": qo.question,
-                        "ground_truth_text": qo.fact,
-                        "source_path": str(pdf_file)
-                    })
+                    q_doc = QuestionDocument(
+                        question_group_id=question_group_id,
+                        question=qo.question,
+                        ground_truth_text=qo.fact,
+                        source_document_path=str(pdf_file)
+                    )
+                    await q_doc.insert()
+                    question_documents.append(q_doc)
                 
                 logger.info(f"Generated {len(question_outputs)} questions from {pdf_file.name}")
                 
@@ -87,8 +94,28 @@ class Evaluator:
                 logger.error(f"Error processing {pdf_file}: {str(e)}")
                 continue
         
-        logger.info(f"Total questions generated: {len(all_questions)}")
-        return all_questions
+        logger.info(f"Total questions generated and stored: {len(question_documents)}")
+        return question_group_id, question_documents
+    
+    async def load_questions_by_group_id(self, question_group_id: str) -> List[QuestionDocument]:
+        """
+        Load existing questions from database by question_group_id.
+        
+        Args:
+            question_group_id: The question group ID to load
+            
+        Returns:
+            List of QuestionDocument objects
+        """
+        questions = await QuestionDocument.find(
+            QuestionDocument.question_group_id == question_group_id
+        ).to_list()
+        
+        if not questions:
+            raise ValueError(f"No questions found for question_group_id: {question_group_id}")
+        
+        logger.info(f"Loaded {len(questions)} questions from question_group_id: {question_group_id}")
+        return questions
     
     def _normalize_path(self, path: str) -> str:
         """
@@ -172,12 +199,17 @@ class Evaluator:
             logger.error(f"Retrieval failed for question '{question}': {str(e)}")
             return []
     
-    async def run_evaluation(self, evaluation_id: str) -> Dict[str, Any]:
+    async def run_evaluation(
+        self, 
+        evaluation_id: str, 
+        question_group_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Run full evaluation workflow for a given evaluation ID.
         
         Args:
             evaluation_id: The evaluation ID from EvaluationDocument
+            question_group_id: Optional question_group_id to reuse existing questions
             
         Returns:
             Dictionary with evaluation results
@@ -195,57 +227,65 @@ class Evaluator:
             eval_doc.status = "running"
             await eval_doc.save()
             
-            # Step 1: Generate questions
-            logger.info(f"Generating questions from {eval_doc.folder_path}")
-            questions_data = self.generate_questions_from_folder(
-                folder_path=eval_doc.folder_path,
-                num_per_doc=eval_doc.num_questions_per_doc
-            )
+            # Step 1: Get or generate questions
+            if question_group_id:
+                # Reuse existing questions
+                logger.info(f"Loading existing questions from group: {question_group_id}")
+                questions = await self.load_questions_by_group_id(question_group_id)
+                # Update eval_doc with the question_group_id
+                eval_doc.question_group_id = question_group_id
+            else:
+                # Generate new questions
+                logger.info(f"Generating questions from {eval_doc.folder_path}")
+                question_group_id, questions = await self.generate_and_store_questions(
+                    folder_path=eval_doc.folder_path,
+                    num_per_doc=eval_doc.num_questions_per_doc
+                )
+                # Update eval_doc with the new question_group_id
+                eval_doc.question_group_id = question_group_id
             
-            eval_doc.num_documents_processed = len(questions_data)
+            eval_doc.num_documents_processed = len(questions)
             await eval_doc.save()
             
-            if not questions_data:
-                raise ValueError("No questions generated from folder")
+            if not questions:
+                raise ValueError("No questions available for evaluation")
             
             # Step 2: Run retrieval for each question and store results
-            logger.info(f"Running retrieval for {len(questions_data)} questions")
-            qa_documents = []
+            logger.info(f"Running retrieval for {len(questions)} questions")
+            result_documents = []
             
-            for i, q_data in enumerate(questions_data, 1):
-                logger.info(f"Processing question {i}/{len(questions_data)}")
+            for i, question_doc in enumerate(questions, 1):
+                logger.info(f"Processing question {i}/{len(questions)}")
                 
                 # Run retrieval
                 retrieved_paths = self.run_retrieval(
-                    question=q_data["question"],
+                    question=question_doc.question,
                     top_k=eval_doc.top_k,
                     use_query_enhancer=eval_doc.use_query_enhancer,
                     use_reranking=eval_doc.use_reranking
                 )
                 
                 # Check if ground truth was retrieved
-                source_path = q_data["source_path"]
+                source_path = question_doc.source_document_path
                 hit, rank = self._check_hit_and_rank(source_path, retrieved_paths)
                 
                 logger.info(f"Question {i}: hit={hit}, rank={rank}, source={Path(source_path).name}")
                 
-                # Create and save Q&A document
-                qa_doc = QuestionAnswerDocument(
+                # Create and save result document
+                result_doc = EvaluationResultDocument(
                     evaluation_id=evaluation_id,
-                    question=q_data["question"],
-                    ground_truth_text=q_data["ground_truth_text"],
-                    source_document_path=source_path,
+                    question_id=str(question_doc.id),
                     retrieved_documents=retrieved_paths,
                     hit=hit,
                     rank=rank
                 )
                 
-                await qa_doc.insert()
-                qa_documents.append(qa_doc)
+                await result_doc.insert()
+                result_documents.append(result_doc)
             
             # Step 3: Calculate metrics
             logger.info("Calculating metrics")
-            metrics = calculate_all_metrics(qa_documents)
+            metrics = calculate_all_metrics(result_documents)
             
             # Update evaluation document with results
             eval_doc.status = "completed"
