@@ -118,6 +118,23 @@ services:
     restart: unless-stopped
     command: ["uv", "run", "celery", "-A", "src.distributed_task.celery_app", "worker", "--loglevel=info", "--concurrency=1", "--pool=prefork"]
 
+  # Gradio UI (web interface)
+  gradio-ui:
+    build:
+      context: ./gradio_app
+      dockerfile: Dockerfile
+    ports:
+      - "7860:7860"
+    environment:
+      - API_BASE_URL=http://app:8000
+    volumes:
+      - ./gradio_app:/app
+    depends_on:
+      - app
+    networks:
+      - saga-network
+    restart: unless-stopped
+
 volumes:
   redis_data:
   mongodb_data:
