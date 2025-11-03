@@ -1307,6 +1307,14 @@ wheels = [
 ]
 
 [[package]]
+name = "en-core-web-sm"
+version = "3.8.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", hash = "sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85" },
+]
+
+[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -6005,6 +6013,7 @@ dependencies = [
     { name = "crewai" },
     { name = "docling" },
     { name = "easyocr" },
+    { name = "en-core-web-sm" },
     { name = "fastapi" },
     { name = "langchain" },
     { name = "langchain-openai" },
@@ -6039,6 +6048,7 @@ requires-dist = [
     { name = "crewai", specifier = ">=1.2.1" },
     { name = "docling", specifier = ">=2.59.0" },
     { name = "easyocr", specifier = ">=1.7.2" },
+    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.120.2" },
     { name = "langchain", specifier = ">=1.0.3" },
     { name = "langchain-openai", specifier = ">=1.0.1" },

@@ -24,6 +24,7 @@ dependencies = [
     "reportlab>=4.4.4",
     "sentencepiece>=0.2.1",
     "spacy>=3.8.7",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "transformers>=4.57.1",
     "uvicorn>=0.38.0",
     "redis>=7.0.1",

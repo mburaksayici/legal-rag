@@ -38,16 +38,12 @@ RUN pip install uv
 # Copy pyproject.toml and uv.lock first for better caching
 COPY pyproject.toml uv.lock ./
 
-# Install Python dependencies using uv
+# Install Python dependencies using uv (includes spacy model from pyproject.toml)
 RUN uv sync --frozen
 
-# Download spaCy model
-RUN uv run python -m spacy download en_core_web_sm
-
-
-
-RUN uv run python -m nltk.downloader punkt_tab punkt averaged_perceptron_tagger \
-    && uv run python -m nltk.downloader -d /usr/local/share/nltk_data stopwords
+# Download NLTK data
+RUN .venv/bin/python -m nltk.downloader punkt_tab punkt averaged_perceptron_tagger \
+    && .venv/bin/python -m nltk.downloader -d /usr/local/share/nltk_data stopwords
 
 # Copy application code
 COPY . .
