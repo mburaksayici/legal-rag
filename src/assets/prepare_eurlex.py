@@ -107,12 +107,16 @@ def json_to_pdf(json_path: Path, output_dir: Path = PDFS_DIR) -> Path:
 	return pdf_path
 
 
-def convert_split_to_pdfs(split_name: str, dataset_root: Path = EXTRACTED_DIR, output_dir: Path = PDFS_DIR) -> None:
+def convert_split_to_pdfs(split_name: str, dataset_root: Path = EXTRACTED_DIR, output_dir: Path = PDFS_DIR, max_docs: int = -1) -> None:
 	split_dir = dataset_root / split_name
 	if not split_dir.exists():
 		return
+	processed = 0
 	for json_file in iter_json_files(split_dir):
+		if max_docs > 0 and processed >= max_docs:
+			break
 		json_to_pdf(json_file, output_dir)
+		processed += 1
 
 
 def prepare_eurlex_pdfs() -> None:
@@ -126,6 +130,7 @@ def _parse_args():
 	import argparse
 	parser = argparse.ArgumentParser(description="Prepare EURLEX PDFs: download, extract, and convert JSONs to PDFs.")
 	parser.add_argument("--skipo", action="store_true", help="Skip wget download step (or set env SKIPO=1).")
+	parser.add_argument("--no_docs", type=int, default=-1, help="Number of documents to process per split. Use -1 or omit for all documents.")
 	return parser.parse_args()
 
 
@@ -144,7 +149,7 @@ def main() -> None:
 		zip_path = ZIP_PATH
 	_ = unzip_if_needed(zip_path, ASSETS_DIR)
 	for split in ("train", "test", "dev"):
-		convert_split_to_pdfs(split, EXTRACTED_DIR, PDFS_DIR)
+		convert_split_to_pdfs(split, EXTRACTED_DIR, PDFS_DIR, max_docs=args.no_docs)
 
 
 if __name__ == "__main__":
