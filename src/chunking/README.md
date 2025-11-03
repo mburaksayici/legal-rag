@@ -1,6 +1,6 @@
 # Chunking Strategy
 
-<img src="./docs/chunking_logic.png" alt="Propositioner Model" width="600">
+<img src="../../docs/chunking_logic.png" alt="Propositioner Model" width="600">
 
 
 
