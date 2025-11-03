@@ -4,6 +4,7 @@
 
 [🎥 Watch the demo on Vimeo](https://vimeo.com/1133081881)
 
+Read README_SYSTEM_DESIGN.md for system design overviews.
 
 A RAG system that is :
 
