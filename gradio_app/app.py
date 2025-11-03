@@ -117,6 +117,12 @@ def load_assets_folders():
     return ["assets/" + f.get("path", f.get("name", "")) for f in folders]
 
 
+def refresh_assets_folders():
+    """Refresh the assets folders dropdown."""
+    choices = load_assets_folders()
+    return gr.update(choices=choices, value=None)
+
+
 def start_ingestion(folder_path, pdf_checked, json_checked):
     """Start ingestion job."""
     if not folder_path:
@@ -165,6 +171,12 @@ def refresh_jobs_list():
 def load_evaluation_folders():
     """Load folders for evaluation."""
     return load_assets_folders()
+
+
+def refresh_evaluation_folders():
+    """Refresh the evaluation folders dropdown."""
+    choices = load_evaluation_folders()
+    return gr.update(choices=choices, value=None)
 
 
 def get_evaluations_for_reuse_choices():
@@ -418,6 +430,8 @@ with gr.Blocks(title="SAGA - Legal Document RAG System", theme=gr.themes.Soft())
                         interactive=True
                     )
                     
+                    refresh_assets_btn = gr.Button("🔄 Refresh Folders", size="sm")
+                    
                     with gr.Row():
                         ingest_pdf = gr.Checkbox(label="PDF", value=True)
                         ingest_json = gr.Checkbox(label="JSON", value=True)
@@ -461,6 +475,12 @@ with gr.Blocks(title="SAGA - Legal Document RAG System", theme=gr.themes.Soft())
             refresh_jobs_btn = gr.Button("🔄 Refresh Jobs List")
             
             # Event handlers
+            refresh_assets_btn.click(
+                fn=refresh_assets_folders,
+                inputs=[],
+                outputs=[ingestion_folder]
+            )
+            
             start_ingestion_btn.click(
                 fn=start_ingestion,
                 inputs=[ingestion_folder, ingest_pdf, ingest_json],
@@ -498,6 +518,8 @@ with gr.Blocks(title="SAGA - Legal Document RAG System", theme=gr.themes.Soft())
                         choices=load_evaluation_folders(),
                         interactive=True
                     )
+                    
+                    refresh_eval_folders_btn = gr.Button("🔄 Refresh Folders", size="sm")
                     
                     eval_top_k = gr.Slider(
                         minimum=1,
@@ -571,6 +593,12 @@ with gr.Blocks(title="SAGA - Legal Document RAG System", theme=gr.themes.Soft())
             refresh_comparison_btn = gr.Button("🔄 Refresh Comparison")
             
             # Event handlers
+            refresh_eval_folders_btn.click(
+                fn=refresh_evaluation_folders,
+                inputs=[],
+                outputs=[eval_folder]
+            )
+            
             start_eval_btn.click(
                 fn=start_evaluation_job,
                 inputs=[
