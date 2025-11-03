@@ -474,11 +474,34 @@ Normally, I should record every file in mongodb, save ids of chunks, when I get 
 Note : I've written extensive blog on [evaluation pipelines](https://mburaksayici.com/blog/2025/10/12/information-retrieval-1.html).
 
 
+### Codebase Design Patterns 
+
+- [Abstract Factory Classes](https://refactoring.guru/design-patterns/abstract-factory/python/example) : To standardise multiple pipelines, such as both DataPreprocessSemantic and SimplePDFPreprocess  uses DataProcessBase, that enforces to use certain parameters. I may have to enforce typing for input/output but I didn't at that stage, since they're subject to change. 
+
+- Pydantic schemas bw components that I want to standardise input/outputs
+
+- Factory methods, assuming that all methods imported having same i/o format, choosing from various method via only factory[method_name] seems beneficial.
+
+- I like the Netflix project structure, that decouples the  router logic and service layer of different modules. For now I kept all routers in src.routers, however for sessions I used src.sessions.routers , which looks better, and I should change to that format. 
+
+- Generally, I followed the pattern of : 
+
+
+
+Service Layer → Application Layer → Factory Method → Interface → Abstract Base Class
+
+- Having this, I can modify changes on payloads on service layer. If module use another module, it calls the implementation in another application layer, not from service. 
+
+- Compostion over inheritence, generally. 
+
+
 ### APIs
 
 
 
 #### 🔧 API Endpoints
+
+Detailed i/o docs are within the src.posts.routers. 
 
 All routes are organized in `src/posts/router.py` and `src/sessions/router.py` for clean architecture:
 
@@ -496,3 +519,35 @@ All routes are organized in `src/posts/router.py` and `src/sessions/router.py` f
 | `/evaluation/{evaluation_id}` | GET | Get evaluation results |
 | `/evaluations` | GET | List all evaluations |
 | `/assets/list` | GET | Browse assets directory |
+
+
+
+### What should be done in production
+
+
+- Security : 
+
+
+  1. To manage sessions, I've used JWT with expiry times on previous projects. 
+  2. Same JWT could be used in websocket streaming as well. 
+  3. Django could be a nice choice although I havent fresh start a project with it, I know it has pre-implementations. 
+  4. Role management should be implemented on mongo to decide user-session/team-sessions and which document to be retrieved by whom. The layer should also be limiting agents to access the data. 
+
+- Scalability Concerns : 
+  
+  1. Rare issue :  OpenAI via same api-key easily hits rate limit as I've faced before. Talking to service provider beforehands.
+  2. Data pipelines/embeddings inside celery is actually not wise. I would be having another machine (gpu) on Runpod for example as I've used before, and writing grouping function for different requests, batching and redistributing vectors to the correct devices. Or, machine(gpu) would batch infer the embeddings, place to redis with request_id, and app layer would grab that.
+   
+  3. I've heard redis is known as having problems on big scale. I've never worked on that scale but people using others.
+  4. Classical DB scaling concerns to replicate MongoDB etc.
+
+- Monitoring : 
+    1. At least grafana to monitor services, but its dead slow but cheap. 
+    2. LLM logging, we were hacking sentry to do visualise efficiently but I need to research on best LLM monitoring tool
+    3. Sentry or Newrelic or again simple grafana to log failures/code issues
+   
+
+- Cost Optimizations : 
+  1. Test agents on small models. Test if stupid tasks can be done via 4o-mini or any other cheaper task. Especially the routing tasks. 
+  2. Reranking via reranker models if scale is big, if data scale is small cheap LLM models could be less costly.
+  3. In my previous experiences, if LLM usage is high and throughput is not expected, hosting LLMs are lot cheaper than apis. Cases include using LLMs to preprocess data lakes. We were able to reduce ChatGPT costs from 40k$ to 5k$ with finetuning small language models, also using ChatGPT as a fallback. 
