@@ -17,6 +17,49 @@ A RAG system that is :
 - Having simple GUI on Gradio
 - Creates evaluation data specialised in hit rate, that allows to compare different retrieval combinations (with/without reranker/query enhancer)
 
+# Table of Contents
+
+- [A RAG System](#a-rag-system)
+- [Table of Contents](#table-of-contents)
+    - [How to run](#how-to-run)
+    - [Python Project Template](#python-project-template)
+    - [Python/Package Manager](#pythonpackage-manager)
+    - [Database Choice](#database-choice)
+    - [Data Parsing \& Ingestion System](#data-parsing--ingestion-system)
+      - [📊 Progress Tracking Metrics](#-progress-tracking-metrics)
+      - [📋 Legacy Comparison](#-legacy-comparison)
+    - [Vector DB](#vector-db)
+    - [Embedding](#embedding)
+    - [Vector DB — Vector Index Decision](#vector-db--vector-index-decision)
+      - [Zilliz / Milvus Strategy](#zilliz--milvus-strategy)
+      - [Heuristic to Use Index](#heuristic-to-use-index)
+      - [Assumptions for Estimation](#assumptions-for-estimation)
+    - [Tech Stack Alternatives](#tech-stack-alternatives)
+      - [Qdrant + Redis + MongoDB](#qdrant--redis--mongodb)
+      - [Qdrant (or other) + Elasticsearch + MongoDB](#qdrant-or-other--elasticsearch--mongodb)
+      - [Elasticsearch + MongoDB](#elasticsearch--mongodb)
+      - [PostgreSQL + pgvector (+ optional Redis)](#postgresql--pgvector--optional-redis)
+    - [Chunking Strategy](#chunking-strategy)
+      - [1. Proposition Model :](#1-proposition-model-)
+      - [3. Final Embedding:](#3-final-embedding)
+    - [Chat Agent](#chat-agent)
+    - [Retriever](#retriever)
+      - [Query Enhancement](#query-enhancement)
+    - [Tech Stack for Session Management](#tech-stack-for-session-management)
+      - [Side stack, educational purposes, Redis Express, Mongo Express UI.](#side-stack-educational-purposes-redis-express-mongo-express-ui)
+    - [Ingestion](#ingestion)
+    - [Hybrid + Vector Search](#hybrid--vector-search)
+    - [Reranking](#reranking)
+    - [Evaluation](#evaluation)
+    - [Codebase Design Patterns](#codebase-design-patterns)
+    - [APIs](#apis)
+      - [API Endpoints](#api-endpoints)
+    - [What should be done in production](#what-should-be-done-in-production)
+
+
+
+
+
 Tech Stack (Component Responsibilities): 
 
 - FastAPI : Serving 
@@ -470,7 +513,7 @@ Service Layer → Application Layer → Factory Method → Interface → Abstrac
 
 
 
-#### 🔧 API Endpoints
+#### API Endpoints
 
 Detailed i/o docs are within the src.posts.routers. 
 
@@ -493,7 +536,7 @@ All routes are organized in `src/posts/router.py` and `src/sessions/router.py` f
 
 
 
-### What should be done in production
+### What should be done in production
 
 
 - Security : 
