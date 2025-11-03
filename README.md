@@ -31,7 +31,7 @@ Tech Stack (Component Responsibilities):
 - And redis express and mongo UI for educational purposes, normally I don't use them but they're easier to setup than MongoDB Atlas.
    
 
-### How to run
+### How to run
 
 Fill up .env.example and rename it to the .env .
 
@@ -254,40 +254,6 @@ For such a project, those are the general options I've seen people are using suc
 For the sake of simplicity+flexibility I'll go with Qdrant + Redis + MongoDB but I've heard complaints about Redis on big scales.
 
 Depending on the needs you can switch to other tech stack.
-
-## EURLEX PDF Preparation Script
-
-# TO DO : Fix.
-
-
-Prerequisites:
-- `wget` available on your system
-- Install deps (optional, only when you want to generate PDFs):
-  - `reportlab`
-  - `python-dotenv` (already listed in `requirements/base.txt`)
-
-Run:
-- Module form:
-```bash
-python -m src.assets.prepare_eurlex
-```
-- Script form:
-```bash
-python src/assets/prepare_eurlex.py
-```
-
-Options:
-- `--skipo` → skip wget step explicitly
-- Or set environment variable `SKIPO=1` to skip wget
-
-Behavior:
-- Always processes all splits: train, test, dev (no split selection)
-
-Artifacts:
-- Zip: `assets/datasets.zip`
-- Extracted: `assets/dataset/`
-- PDFs output: `assets/pdfs/`
-
 
 ### Chunking Strategy 
 
