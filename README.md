@@ -33,6 +33,8 @@ Tech Stack (Component Responsibilities):
 
 ### How to run
 
+Fill up .env.example and rename it to the .env .
+
 ```
 git clone https://github.com/mburaksayici/legal-rag.git && \
 cd legal-rag && \
