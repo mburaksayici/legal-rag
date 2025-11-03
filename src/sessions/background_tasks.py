@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 from typing import List
 from src.redis.client import redis_client
 from src.mongodb.client import mongodb_client
-from src.sessions.models import SessionDocument
+from src.sessions.models import SessionDocument, Session
 from src.sessions.service import session_service
-from src.config import SESSION_EXPIRY_MINUTES
+from src.config import SESSION_EXPIRY_MINUTES, SESSION_MIGRATION_INTERVAL_MINUTES
 
 logger = logging.getLogger(__name__)
 
@@ -34,27 +34,65 @@ class SessionBackgroundTasks:
         logger.info("Stopping session background tasks")
     
     async def session_cleanup_loop(self):
-        """Main loop for session cleanup - runs every minute"""
+        """Main loop for session cleanup - runs based on SESSION_MIGRATION_INTERVAL_MINUTES"""
         while self.running:
             try:
                 await self.cleanup_expired_sessions()
-                # Sleep for 1 minute before next cleanup
-                await asyncio.sleep(60)
+                # Sleep for configured interval before next cleanup
+                sleep_seconds = SESSION_MIGRATION_INTERVAL_MINUTES * 60
+                logger.info(f"Next session migration in {SESSION_MIGRATION_INTERVAL_MINUTES} minutes")
+                await asyncio.sleep(sleep_seconds)
             except Exception as e:
                 logger.error(f"Error in session cleanup loop: {e}")
-                await asyncio.sleep(60)  # Continue after error
+                # Continue after error with same interval
+                await asyncio.sleep(SESSION_MIGRATION_INTERVAL_MINUTES * 60)
     
     async def cleanup_expired_sessions(self):
         """Clean up expired sessions and migrate to MongoDB"""
         try:
-            # Note: Redis TTL automatically handles expiry, but we can implement
-            # additional cleanup logic here if needed
+            logger.info("Starting periodic session migration to MongoDB")
             
-            # For now, we'll implement a simple check for sessions that are about to expire
-            # In a production environment, you might want to use Redis keyspace notifications
-            # or implement a more sophisticated tracking mechanism
+            # Use SCAN to find all session keys in Redis
+            pattern = "session:*"
+            cursor = 0
+            migrated_count = 0
+            error_count = 0
             
-            logger.debug("Session cleanup completed")
+            # SCAN through all session keys
+            while True:
+                cursor, keys = self.redis.client.scan(cursor, match=pattern, count=100)
+                
+                for key in keys:
+                    try:
+                        # Extract session_id from key (format: "session:session_id")
+                        session_id = key.replace("session:", "")
+                        
+                        # Get session data from Redis
+                        session_data = self.redis.get_session(session_id)
+                        
+                        if session_data:
+                            # Convert to Session object
+                            session = Session(**session_data)
+                            
+                            # Migrate to MongoDB (keeps in Redis too)
+                            success = await session_service.save_session_to_mongodb(session)
+                            
+                            if success:
+                                migrated_count += 1
+                                logger.debug(f"Migrated session {session_id} to MongoDB")
+                            else:
+                                error_count += 1
+                                logger.warning(f"Failed to migrate session {session_id}")
+                    
+                    except Exception as e:
+                        error_count += 1
+                        logger.error(f"Error migrating session {key}: {e}")
+                
+                # Break when cursor returns to 0 (full iteration complete)
+                if cursor == 0:
+                    break
+            
+            logger.info(f"Session migration completed: {migrated_count} migrated, {error_count} errors")
             
         except Exception as e:
             logger.error(f"Error during session cleanup: {e}")

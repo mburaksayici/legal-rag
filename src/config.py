@@ -19,6 +19,7 @@ MONGODB_DATABASE = os.getenv('MONGODB_DATABASE', 'saga_chat')
 
 # Session configuration
 SESSION_EXPIRY_MINUTES = int(os.getenv('SESSION_EXPIRY_MINUTES', 2))
+SESSION_MIGRATION_INTERVAL_MINUTES = int(os.getenv('SESSION_MIGRATION_INTERVAL_MINUTES', 1))
 
 # Chromadb configuration
 CHROMADB_DB_PATH = os.getenv('CHROMADB_DB_PATH', './legal_chromadb')

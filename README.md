@@ -2,6 +2,9 @@
 
 # A RAG System 
 
+[🎥 Watch the demo on Vimeo](https://vimeo.com/1133081881)
+
+
 A RAG system that is :
 
 - Chunking with propositional model + late chunking

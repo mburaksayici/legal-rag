@@ -288,8 +288,8 @@ def load_evaluations_comparison():
 
 # ===== BUILD GRADIO INTERFACE =====
 
-with gr.Blocks(title="SAGA - Legal Document RAG System", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🏛️ SAGA - Legal Document RAG System")
+with gr.Blocks(title=" Document RAG System", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 🏛️  Document RAG System")
     gr.Markdown("Semantic search and chat interface for legal documents")
     
     with gr.Tabs():
