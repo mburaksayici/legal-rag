@@ -1,33 +1,88 @@
 
 
-### Project Template 
+# A RAG System 
 
-I use different templates time to time to start with, for this one I'll start with  Netflix's Dispatch project structure. 
+A RAG system that is :
 
-https://github.com/zhanymkanov/fastapi-best-practices
+- Chunking with propositional model + late chunking
+- Using Qdrant as a Vector DB, utilising its hybrid search (BM25 + Dense Search)
+- Reranks via LLMs
+- Using query enhancement agent via LLMs
+- Using crewAI for conversation agent
+- Allows you to chat with data
+- Dividing conversations into sessions, saving/caching in Redis, cold stage to MongoDB
+- Having simple GUI on Gradio
+- Creates evaluation data specialised in hit rate, that allows to compare different retrieval combinations (with/without reranker/query enhancer)
 
-Normally I generally use  FastAPI's official template : github.com/tiangolo/full-stack-fastapi-template
+Tech Stack (Component Responsibilities): 
 
-Or if I foresee the project requirements (eg. if I know I use redis+celery+flask I search for a specific combo), I research on templates to start with .
+- FastAPI : Serving 
+- Redis : Cache layer of conversations, hot stage to retrieve data
+- MongoDB : Cold stage database to keep TTL exceeded conversation, also storage of static data (evaluations, etc.)
+- crewAI : Agentic AI solution to easily deal with multi-step agents
+- Qdrant : A Vector DB that allows to do hybrid search natively (BM25+Dense)
+- Celery : Distributed task management for the long data ingestion projects
+- Gradio : Quick-n-dirty UI
+- HF : Embedding/Proposition Models
+- LLM : ChatGPT-4o-mini (you can set anything)
+- And redis express and mongo UI for educational purposes, normally I don't use them but they're easier to setup than MongoDB Atlas.
+   
 
-### Python Environment
+### How to run
 
-Throughout history I've used plain pip, poetry, pdm. For the project I'll use uv.  
+```
+git clone https://github.com/mburaksayici/legal-rag.git && \
+cd legal-rag && \
+
+docker-compose up -d
+
+```
+
+Optionally, you can install EURLEX data and preprocess to mock PDFs via the code below.  
+```
+uv venv --python 3.10 && \
+source .venv/bin/activate && \
+uv pip install reportlab python-dotenv && \
+python -m src.assets.prepare_eurlex && \
+mkdir -p assets/sample_pdfs && \
+find assets/pdfs -type f -name '*.pdf' | shuf -n 10 | xargs -I{} cp {} assets/sample_pdfs/ && \
+```
+
+### Python Project Template 
+
+I use different templates time to time to start with, for this one I'll give [ Netflix's Dispatch project structure](
+https://github.com/zhanymkanov/fastapi-best-practices) a try. 
+
+
+Side Note :
+
+I generally use  [FastAPI's official template.](github.com/tiangolo/full-stack-fastapi-template)
+
+Or if I foresee the project requirements (eg. if I know I use redis+celery+flask I search for a specific combo), I research on templates to start with.
+
+### Python/Package Manager
+
+Throughout history I've used plain pip, poetry, pdm. uv got its fame for a reason, uv is used on the project and I'm glad I've used especially on Silicon Mac.
+
+### Database Choice
+Why did project pick Mongodb over SQLs and others?
+
+MongoDB, since it's flexible for a small project, especially when requirements are not clear. Project deals with text data, any NoSQL should be a go for a prototype.
+
+Side (Fun) Note : When I was working on a startup, an experienced guy joined to the project, he taught me a lesson that project needs to be migrated to PostGres due to business requirements of database migrations (PGres handles natively), **but he said he's not recommending  that to the technical team since he joined 1 week ago, he said it's not the correct time**.  
 
 ### Data Parsing & Ingestion System
 
-The system now features a **Celery-based asynchronous ingestion pipeline** with real-time progress tracking via Redis.
+How did system handles ingestion jobs?
 
-#### 🚀 New Celery-Based Ingestion Features
+In that scale, celery is a to-go for long ingestion tasks, and its compatibility with Redis made me think to use Redis as in-mem cache of conversations. 
 
-- **Dynamic Fan-Out Pattern**: Master task spawns individual subtasks for each document
-- **Parallel Processing**: Documents processed simultaneously across multiple workers
-- **Real-time Progress Tracking**: Monitor ingestion progress with detailed metrics per document
-- **Redis-backed Status**: Progress data stored in Redis for fast access
-- **Comprehensive Metrics**: Track successful/failed documents, estimated time remaining
-- **Multiple File Types**: Support for PDF and JSON documents
-- **Scalable Architecture**: Horizontal scaling with multiple Celery workers
-- **Fault Tolerance**: Individual document failures don't stop the entire job
+An ingestion endpoint starts a job with job id, celery runs on workers, reporting the status to the MongoDB. Webapp can poll result.
+
+
+Although I didn't use redis pub/sub or celery signals, they can be used to inform end users.
+
+
 
 #### 📊 Progress Tracking Metrics
 
@@ -39,36 +94,27 @@ The system now features a **Celery-based asynchronous ingestion pipeline** with 
 - Progress percentage
 - Real-time status updates
 
-#### 🔧 API Endpoints
-
-All routes are organized in `src/posts/router.py` for clean architecture:
-
-| Endpoint | Method | Description |
-|----------|---------|-------------|
-| `/ingestion/start_job` | POST | Start folder ingestion job |
-| `/ingestion/start_single_file` | POST | Start single file ingestion |
-| `/ingestion/status/{job_id}` | GET | Get job progress and status |
-| `/ingestion/jobs` | GET | List all active jobs |
-| `/ingest` | POST | Legacy endpoint (redirects to Celery) |
-| `/chat` | POST | Chat with AI assistant |
-| `/sessions/{session_id}` | GET | Get session information |
 
 #### 📋 Legacy Comparison
 
-| Category | Description | Tools / Examples | Cost | Pros | Cons |
-|-----------|--------------|------------------|------|------|------|
-| **Data Parsing / Ingestion** | Parsing with APIs or custom solutions depending on use-case | — | — | — | — |
-| **APIs** | High-quality baseline; no constraint on budget | LangChain, MinerU | ~0.0001¢ per page (basic parsing) | High accuracy, easy setup | Cost increases with scale |
-| **Custom Solutions** | Necessary in some domains; customizable pipelines | LangChain, PyMuPDF, Unstructured, Docling | Free (except man-hours) | Custom logic, domain adaptability | Higher engineering effort |
-| **API Custom Development** | Building your own parsing interface or logic | LangChain Parse | — | Flexible, extensible | Maintenance overhead |
-| **Scalability Consideration** | Initially low cost, but can become expensive at scale | — | — | Control over infrastructure | "We can implement it ourselves" often becomes a harder problem |
-| **Domain-Specific Parsing** | Needed for specialized sectors | Defense Tech, Banking | — | Tailored accuracy | Requires domain expertise |
+| **Category** | **API Solutions** | **Custom Solutions** |
+|---------------|-------------------|----------------------|
+| **Description** | High-quality baseline; no constraint on budget | Necessary in some domains; customizable pipelines |
+| **Tools / Examples** | LangChain Parse, MinerU | LangChain, PyMuPDF, Unstructured, Docling |
+| **Cost** | ~0.0001¢ per page (basic parsing) | Free (except man-hours) |
+| **Pros** | High accuracy, easy setup | Custom logic, domain adaptability |
+| **Cons** | Cost increases with scale | Higher engineering effort |
 
 
 ### Vector DB
+Qdrant is employed on the project. Simple reasons are native support for hybrid search.
+
+Why Qdrant, not FAISS, Chroma, pgvector?  Tradeoffs?
+
+
 Previously have used ChromaDB local, Pinecone Cloud. 
 
-** I have changed DB choice 3 times because **
+**For the project, I have changed DB choice 3 times because:**
 
 1. First attempted Milvus, because I love his CTO, he moved to VoyageAI later on and then company acquired by MongoDB. However I've read it has limited capability on free-oss tier.
 2. Switched to ChromaDB for local tests, was about to keep it until I hit to celery task deadlocks reading from local disk which is obvious.
@@ -76,19 +122,34 @@ Previously have used ChromaDB local, Pinecone Cloud.
 
 
 - **Scaling:** Use APIs when you don’t want to deal with scaling. For small projects, a self-hosted setup can be sufficient.  
-- **Industry Standards:** The decision also depends on the data protection standards required in the specific industry.  
-- **Chosen Stack:** Currently using **Milvus**, since it supports both **local** and **cloud** environments.  
-- **Side Note:** I'm waiting for **MongoDB** to release full **Vector DB** functionality for on-premise use. At the moment, it’s only available in their **Atlas Vector DB** (cloud version).
 
-And going with local deployment of vector db. First I'll keep vectordb local, then I'll move to another container. 
+Side (Fun) Note: I'm still waiting for **MongoDB** to release full **Vector DB** functionality for on-premise use. At the moment, it’s only available in their Atlas Vector DB (cloud version). IDK why they have been inactive for so long. Now they acquired Voyage AI, joined Frank Liu and Terence Tao, both amazing guys. 
+
 
 ### Embedding 
 
-Both Langchain CEO and Mivlus/VoyageAI CTO advises E5. 
+Which one and why?
+
+I'm sad that I discovered [voyage-law-2](https://www.youtube.com/watch?v=pIPtpBZ6TKk) model very late. I'm a big fan of Frank Liu, I haven't seen the talk yet. However, model is [on HF, but weights not available](https://huggingface.co/voyageai/voyage-law-2
+) and available [via API.](https://aws.amazon.com/marketplace/pp/prodview-bknagyko2vl7a)
+
+
+Both Langchain CEO and Milvus/VoyageAI (Frank Liu again) CTO advises E5, especially Frank Liu advises it multiple times. 
+
 Performance concerns, I'll go with E5-small. 
 
+[MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) should be followed for embedding for different purposes. Some models are good at reranking while some are in retrieval.
 
-### 🧠 Vector DB — Vector Index Decision
+In a specific legal docs example, repetitive terms/domain-specific language usage may make the life of general models harder. Probably, legal embedding models are trained via negative sampling on daily usage, and positive sampling on a legal document usage. 
+
+On the other hand, vagueness due to repetitive propositions are solved via propositional model, during chunking process.
+
+
+Note project also implements evaluation pipeline so different embedding models can be tested later on, and embedding could be parametrized in retrieve endpoints..
+
+
+
+### Vector DB — Vector Index Decision
 
 #### Zilliz / Milvus Strategy
 
@@ -110,37 +171,34 @@ I'll use the database default, HNSW, will work as good as FLAT on small data.
 
 #### Assumptions for Estimation
 
-- **1 PDF = 10 pages**  
-- **1 page = 500 words**  
-- **15 words = 1 sentence**  
-- **1 chunk = 3 sentences**
-- **1 PDF = 111 chunks**
+* **1 PDF = 10 pages**
+* **1 page = 500 words**
+* **15 words = 1 sentence**
+* **1 chunk = 3 sentences**
+* **1 PDF = 111 chunks**
 
-Thus,  
-- **1 chunk = 512 × 4 = 2 048 bytes ≈ 2 KB (unquantized float32)** 
-- **1 PDF = 111*2KB = 222 KB**
-- **100k PDF = 22 GB** 
+Thus,
 
-Could be a rough estimate to choose indexing. 
+* **1 chunk = 512 × 2 = 1 024 bytes ≈ 1 KB (float16)**
+* **1 PDF = 111 × 1 KB = 111 KB**
+* **100 k PDFs = 11 GB**
 
+Could be a rough estimate to choose indexing.
 
-## Approximate Storage Estimation
+Those assumptions lead to:
 
-| PDFs | Pages per PDF | Words per Page | Total Words | Chunks (=Words/45) | Size per Vector | **Total Size** |
-|------|----------------|----------------|--------------|--------------------|-----------------|----------------|
-| 1,000 | 10 | 500 | 5 M | 111,111 | 4 KB | ≈ **0.44 GB** |
-| 5,000 | 10 | 500 | 25 M | 555,555 | 4 KB | ≈ **2.2 GB** |
-| 50,000 | 10 | 500 | 250 M | 5.56 M | 4 KB | ≈ **22 GB** |
-| 500,000 | 10 | 500 | 2.5 B | 55.6 M | 4 KB | ≈ **222 GB** |
-
-
-- For **≤ 2 GB**, a simple IVF index is efficient.  
-- For **10–200 GB**, prefer HNSW or hybrid indexes for faster queries.  
-- For **200 GB+**, DiskANN or Milvus Disk Index becomes necessary.  
-- Use heuristics above to plan scaling for document-heavy RAG systems.
+| PDFs    | Pages per PDF | Words per Page | Total Words | Chunks (= Words / 45) | Size per Vector | **Total Size (fp16)** | **Total Size (fp32)** |
+| ------- | ------------- | -------------- | ----------- | --------------------- | --------------- | --------------------- | --------------------- |
+| 1 000   | 10            | 500            | 5 M         | 111 111               | 1 KB            | ≈ **0.11 GB**         | ≈ 0.22 GB             |
+| 5 000   | 10            | 500            | 25 M        | 555 555               | 1 KB            | ≈ **0.56 GB**         | ≈ 1.1 GB              |
+| 50 000  | 10            | 500            | 250 M       | 5.56 M                | 1 KB            | ≈ **5.6 GB**          | ≈ 11.1 GB             |
+| 500 000 | 10            | 500            | 2.5 B       | 55.6 M                | 1 KB            | ≈ **55.6 GB**         | ≈ 111 GB              |
 
 
-### Tech Stack Options for the requirements
+
+### Tech Stack Alternatives
+
+The project can be written in various combinations.
 
 Project requires : 
 
@@ -154,18 +212,18 @@ There are options, some  may bloat your tech stack but may bloat it for a reason
 For such a project, those are the general options I've seen people are using successfully. 
 
 
-#### Milvus + Redis + MongoDB
+#### Qdrant + Redis + MongoDB
 
-- **Milvus** → Vector Database (stores embeddings and enables semantic search)  
+- **Qdrant** → Vector Database (stores embeddings and enables semantic search)  
 - **Redis** → Cache for chat history, conversation context, and asynchronous task results  
 - **MongoDB** → Persistent storage for sessions, documents, and chat logs  
 - **FastAPI** → Backend framework for API endpoints  
 - **Celery** → Task queue for background ingestion and embedding jobs  
 
 
-#### Milvus (or other) + Elasticsearch + MongoDB
+#### Qdrant (or other) + Elasticsearch + MongoDB
 
-- **Milvus (or other)** → Vector Database  
+- **Qdrant (or other)** → Vector Database  
 - **Elasticsearch** → Keyword + hybrid search (BM25) and optional caching layer for query results  
 - **MongoDB** → Persistent storage for metadata and history  
 - **FastAPI** → API layer  
@@ -188,13 +246,14 @@ For such a project, those are the general options I've seen people are using suc
 - **Celery / RQ / Dramatiq / BackgroundTasks** → For background jobs  
 
 
-For the sake of simplicity+flexibility I'll go with Milvus + Redis + MongoDB but I've heard complaints about Redis on big scales.
+For the sake of simplicity+flexibility I'll go with Qdrant + Redis + MongoDB but I've heard complaints about Redis on big scales.
 
 Depending on the needs you can switch to other tech stack.
 
 ## EURLEX PDF Preparation Script
 
-This repo includes a helper script to download, extract, and convert the EURLEX57K JSON dataset into PDFs.
+# TO DO : Fix.
+
 
 Prerequisites:
 - `wget` available on your system
@@ -227,61 +286,49 @@ Artifacts:
 
 ### Chunking Strategy 
 
-Milvus and Langchain technical executives both advices Late Chunking.
+Chunking consists of three nodes:
 
-I'll fill this part later on. TO DO .
+#### 1. Proposition Model : 
 
-Original Text : 
+Embedding models like diversity on the data, and got confused on the pronouns, I'm guessing especially in legal documents cases.
 
-Having regard to Article 83 of the Treaty establishing the European Economic Community, which provides that an advisory committee consisting of experts designated by the Governments of Member States shall be attached to the Commission and consulted by the latter on transport matters whenever the Commission considers this desirable, without prejudice to the powers of the transport section of the Economic and Social Committee; Having regard to Article 153 of that Treaty, which provides that the Council shall, after receiving an opinion from the Commission, determine the rules governing the committees provided for in that\n\nTreaty;\n\nHaving received an Opinion from the Commission;\n\n## Main Body:\n\nthat the Rules of the Transport Committee shall be as follows:\n\nThe Committee shall consist of experts on transport matters designated by the Governments of Member States. Each Government shall designate one expert or two experts selected from among senior officials of the central administration. It may, in addition, designate not more than three experts of acknowledged competence in, respectively, the railway, road transport and inland waterway sectors.\n\nEach Government may designate an alternate for each member of the Committee appointed by it; this alternate shall satisfy conditions the same as those for the member of the Committee whom he replaces.\n\nAlternates shall attend Committee meetings and take part in the work of the Committee only in the event of full members being unable to do so.\n\nCommittee members and their alternates shall be appointed in their personal capacity and may not be bound by any mandatory instructions.\n\nThe term of office for members and their alternates shall be two years. Their appointments may be renewed.\n\nIn the event of the death, resignation or compulsory retirement of a member or alternate, that member or alternate shall replaced for the remainder of his term of office.\n\nThe Government which appointed a member or alternate may compulsorily retire that member or alternate only if the member or alternate no longer fulfils the conditions required for the performance of his duties.\n\nThe Committee shall, by an absolute majority of members present and voting, elect from among the members appointed by virtue of their status as senior officials of the central administration a Chairman and Vice-Chairman, who shall serve as such for two years. Should the Chairman or Vice-Chairman cease to hold office before the period for which he was elected has expired, a replacement for him shall be elected for the remainder of the period for which he was originally elected.\n\nNeither the Chairman nor the Vice-Chairman may be re-elected.\n\nThe Committee shall be convened by the Chairman, at the request of the Commission, whenever the latter wishes to consult it. The Commission's request shall state the purpose of the consultation.\n\nWhen the Committee is consulted by the Commission, it shall present the latter with a report setting out the conclusions reached as a result of its deliberations. It shall do likewise if the Commission entrusts it with the study of a specific problem. The Commission shall also be entitled to consult the Committee orally. The minutes of the Committee shall be sent to the Commission.\n\nThe Commission shall be invited to send its representatives to meetings of the Committee and its working parties.\n\nThe Committee shall, by an absolute majority of members present and voting, adopt rules of procedure laying down its methods of working.\n\nThe Committee may, whenever such action appears to it to be necessary for the purposes of formulating an opinion, seek the assistance of any suitably qualified person, obtain any advice and hold hearings. Such action may, however, be taken only with the consent of the Commission.\n\n0\n\nThe expenses of the Committee shall be included in the estimates of the Commission.\n\n## Attachments:\n\nDone at Brussels, 15 September 1958.\n\nFor the Council The President L. Erhard
-
-
-##### Proposition Model
-| **Original Legal Text** | **Propositionized Output** |
-|--------------------------|-----------------------------|
-| *Having regard to <mark>Article 83</mark> of the Treaty establishing the European Economic Community, which provides that an advisory committee consisting of experts designated by the Governments of Member States shall be attached to the Commission and consulted by the latter on transport matters whenever the Commission considers this desirable, without prejudice to the powers of the transport section of the Economic and Social Committee;* | **<mark>Article 83</mark> of the Treaty establishing the European Economic Community <mark>provides for</mark> an advisory committee consisting of experts designated by the Governments of Member States.**  <br> **The advisory committee shall be attached to the Commission and consulted on transport matters whenever the Commission considers it desirable.**  <br> **The advisory committee shall not prejudice the powers of the transport section of the Economic and Social Committee.** |
-| *Having regard to <mark>Article 153</mark> of that Treaty, which provides that the Council shall, after receiving an opinion from the Commission, determine the rules governing the committees provided for in that Treaty;* | **<mark>Article 153</mark> of the Treaty <mark>provides for the Council to determine</mark> the rules governing the committees provided for in that Treaty after receiving an opinion from the Commission.** |
-| *Having <mark>received</mark> an Opinion from the Commission;* | ⚠️ **The Council <mark>shall receive</mark> an Opinion from the Commission.** |
-| *That the Rules of the Transport Committee <mark>shall be as follows</mark>:* | ⚠️ **The Rules of the Transport Committee <mark>shall consist of experts on transport matters designated by the Governments of Member States</mark>.** |
-| *The Committee shall consist of experts on transport matters designated by the Governments of Member States.* | **<mark>Each Government shall designate one expert or two experts selected from among senior officials of the central administration.</mark>** |
-| *It may, in addition, designate not more than three experts of acknowledged competence in, respectively, the railway, road transport and inland waterway sectors.* | **Each Government may designate not more than three experts of acknowledged competence in the <mark>railway, road transport, and inland waterway</mark> sectors.** |
-| *Each Government may designate an alternate for each member of the Committee appointed by it; this alternate shall satisfy conditions the same as those for the member of the Committee whom he replaces.* | **Each Government may designate an alternate for each member of the Committee appointed by it.**  <br> **The alternate shall satisfy conditions the same as those for the member of the Committee whom he replaces.** |
-| *Committee members and their alternates shall be appointed in their personal capacity and may not be bound by any mandatory instructions.* | **Committee members and their alternates shall be appointed in their personal capacity.** <br> **Committee members and their alternates may not be bound by any mandatory instructions.** |
-| *The term of office for members and their alternates shall be two years. Their appointments may be renewed.* | **The term of office for members and their alternates shall be two years.** <br> **<mark>Appointments for members and their alternates may be renewed.</mark>** |
-| *In the event of the death, resignation or compulsory retirement of a member or alternate, that member or alternate shall <mark>replaced</mark> for the remainder of his term of office.* | **In the event of the death, resignation, or compulsory retirement of a member or alternate, that member or alternate shall <mark>be replaced</mark> for the remainder of his term of office.** |
+<img src="./docs/propositioner_model.png" alt="Propositioner Model" width="300">
 
 
+The proposition has such an effect on EUR-LEX data : 
 
-##### Meaning Comparison
+| Original Sentence | Rewritten / Equivalent Sentence |
+|--------------------|---------------------------------|
+| **_`Having received`_** an Opinion from the Commission. | **_`The Council shall receive`_** an Opinion from the Commission. |
 
-| Clause | Original intention | Propositionized version | Meaning change |
-|--------|--------------------|--------------------------|----------------|
-| “Having regard to Article 83…” | Cites the legal authority and basis. | Declarative factual statement of Article 83’s content. | ✅ No change (stylistic only). |
-| “Attached to the Commission…” | Defines advisory linkage to Commission. | Rephrased identically. | ✅ Same meaning. |
-| “Without prejudice…” | Ensures existing powers remain. | Restated identically. | ✅ Same meaning. |
-| “Having regard to Article 153…” | Cites second authority. | Declarative factual restatement. | ✅ Same meaning. |
-| “Having received an Opinion…” | Indicates past procedural completion. | “Shall receive” — shifts to normative future tense. | ⚠️ Minor temporal nuance change. |
-| “That the Rules… shall be as follows” | Introduces forthcoming section. | Compressed into direct declarative of rule content. | ⚠️ Slight formal change, semantics intact. |
-| Membership / alternates / term clauses | Normative rules about composition and duration. | Split into clear, one-sentence propositions. | ✅ Same meaning, better granularity. |
+In src/data_preprocess/README.md, I'm leaving the full example.
 
 
-#### Semantic Splitting
+#### 2. Late Chunking via Sequential Sentence Embedding Differences
 
-Proposed model proposes the text. 
+Milvus and Langchain technical executives both advices Late Chunking. And I've seen the technique that, 
 
-And in late chunking, pipeline checks if meaning shift between sentences exists.
+a. given the sentence embeddings provided by propositioner, calculating embeddings for each sentence
+b. then cosine similarity Splitting to find semantic boundaries
+c. Finding breakpoint on difference jumps, meaning "there is a context change". 
+d. Grouping till the parts of chunks.
 
-Final output via late chunking is :
-
-
-1. Article 83 of the Treaty establishing the European Economic Community provides for an advisory committee consisting of experts designated by the Governments of Member States. The advisory committee shall be attached to the Commission and consulted on transport matters whenever the Commission considers it desirable. The advisory committee shall not prejudice the powers of the transport section of the Economic and Social Committee.
-2. Article 153 of the Treaty provides for the Council to determine the rules governing the committees provided for in that Treaty after receiving an opinion from the Commission. The Council shall receive an Opinion from the Commission. The Rules of the Transport Committee shall consist of experts on transport matters designated by the Governments of Member States. Each Government shall designate one expert or two experts selected from among senior officials of the central administration. Each Government may designate not more than three experts of acknowledged competence in the railway, road transport, and inland waterway sectors. Each Government may designate an alternate for each member of the Committee appointed by it. The alternate shall satisfy conditions the same as those for the member of the Committee whom he replaces.
-3. Alternates shall attend Committee meetings and take part in the work of the Committee only in the event of full members being unable to do so. Committee members and their alternates shall be appointed in their personal capacity. Committee members and their alternates may not be bound by any mandatory instructions. The term of office for members and their alternates shall be two years. Appointments for members and their alternates may be renewed. In the event of the death, resignation, or compulsory retirement of a member or alternate, that member or alternate shall be replaced for the remainder of his term of office. The Government which appointed a member or alternate may compulsorily retire that member or alternate only if the member or alternate no longer fulfils the conditions required for the performance of his duties. The Committee shall elect a Chairman and Vice-Chairman from among the members appointed by virtue of their status as senior officials of the central administration. The Chairman and Vice-Chairman shall serve as such for two years. Should the Chairman or Vice-Chairman cease to hold office before the period for which he was elected has expired, a replacement for him shall be elected for the remainder of the period for which he was originally elected. Neither the Chairman nor the Vice-Chairman may be re-elected. The Chairman shall convene the Committee at the request of the Commission whenever the latter wishes to consult it.
-4. The Commission's request shall state the purpose of the consultation.
-5. When the Committee is consulted by the Commission, it shall present the Commission with a report setting out the conclusions reached as a result of its deliberations. The Committee shall present the Commission with a report if the Commission entrusts it with the study of a specific problem. The Commission shall also be entitled to consult the Committee orally. The minutes of the Committee shall be sent to the Commission. The Commission shall be invited to send its representatives to meetings of the Committee and its working parties. The Committee shall adopt rules of procedure laying down its methods of working. The Committee may seek the assistance of any suitably qualified person, obtain any advice and hold hearings. Such action may be taken only with the consent of the Commission. The expenses of the Committee shall be included in the estimates of the Commission.
-6. The President of the Council is L. Erhard.
+<img src="./docs/late_chunking.png" alt="Propositioner Model" width="300">
 
 
+With that way, pipeline checks if meaning shift between sentences exists. 
+
+#### 3. Final Embedding: 
+
+Since the new chunks arrived, a final embedding is applied to save to vector DB.
+
+
+You can get into the [./src/data_preprocess/README.md](src/data_preprocess/README.md) on a real example of a full pipeline, step by step. I highly suggest that!
+
+
+Final chunking stragegy looks like:
+
+<img src="./docs/chunking_logic.png" alt="Propositioner Model" width="600">
 
 
 ### Chat Agent
@@ -294,20 +341,21 @@ At the end of the day they are extension of api-wrappers, nothing wrong with wri
 
 Prompt templating on MongoDB and letting PMs to modify prompts is also a good choice for experimenting, leaving polishing to PMs. 
 
-uv run python -m spacy download en_core_web_sm
 
 ### Retriever
 
-Automergingretrieval is used. 
+Automergingretrieval is used, heavily advised by Langchain/Milvus.
 
+![Automerging retrieval](https://miro.medium.com/v2/resize:fit:400/format:webp/0*9_sU8DI9eM5AKDao.png)
+
+All the alternatives, recursive retrieval, parent-child retrieval and similar others, lyes on the principle of "if so many chunks from same section, why not getting the full section" logic.
+
+Which makes sense!
 
 #### Query Enhancement
 
 Before the retrieval layer, query enhancement is applied. 
 
-
-
-Automerging retriever heavily advised by Langchain/Milvus. TO DO: Place diagrams .
 
 
 ### Tech Stack for Session Management 
@@ -317,12 +365,12 @@ Considerations:
 - Conversation retrieval can be needed both by backend and frontend.
 
 
-
 a. Redis : To keep latest conversations/sessions in-memory and quick recovery.
 
-b. Mongodb : Persistent DB to:
+b. Mongodb : Persistent (Cold Stage) DB to:
 1. Retrieve unused conversation from mongodb to redis, if conversation is reinstantiated
 2. Store conversations and other related artifacts (redis keys) which are cache invalidated due to TTL (6 hours, 1 business day, 1 week)
+
 
 c. Celery : To orchestrate TTLs from redis to mongo.
 
@@ -331,7 +379,28 @@ Pattern : Cache Aside Pattern
 App <-> Redis <-> MongoDB 
 
 
-#### Redis Express 
+                       ┌──────────────────────────┐
+                       │          App             │
+                       │ (Backend / Frontend)     │
+                       └────────────┬─────────────┘
+                                    │
+                     1️⃣  Read / Write Request
+                                    │
+                                    ▼
+                       ┌──────────────────────────┐
+                       │         Redis            │
+                       │   (Cache - in memory)    │
+                       └────────────┬─────────────┘
+                         ▲          │
+       3️⃣ Rehydrate on   │ 2️⃣ Cache Miss → Query DB
+          reinstantiation│          ▼
+                       ┌──────────────────────────┐
+                       │        MongoDB           │
+                       │ (Persistent Storage)     │
+                       └──────────────────────────┘
+
+
+#### Side stack, educational purposes, Redis Express, Mongo Express UI.
 
 To test if conversation in redis
 
@@ -345,14 +414,15 @@ TTL session:0ea95f3a-b0ab-4e2e-92d8-6e227fd7715f
 Mongodb Atlas (heavily used it before, quite liked it) can be used for tracking, but for simplicity I wanted to use Mongo Express UI.
 
 
-#### Ingestion 
+### Ingestion 
 
 1. Fastapi triggers celery, given the folder. 
 2. Celery creates number of tasks per file. 
 3. Ingest/status api to track status of a job. 
 
-Celery runs on different container, connected to same redis (not same queue) with the conversation queue. 
+Celery runs on different container, using redis as broker. Same redis (not same queue) used to carry the messages.
 
+Docling is used in pdf pipeline, so it's slow for a moment.
 
 ### Hybrid + Vector Search
 
@@ -384,16 +454,16 @@ In small systems, like I used in career.io/interview-prep was similar to simple 
 
 There are reranker models trained for that purpose, depending on the cost+performance tradeoffs you can either use reranker model or use simple LLMs. 
 
-For the project I created reranking agent that retrieves documents, feeds into LLM. 
+For the project I created reranking agent that retrieves documents, feeds into LLM. It's a parameter of retrieve function.
 
 The endpoint to test, is the "retrieve" endpoint that you can toggle on-off the reranking and query enhancer.
 
-#### Evaluation 
+### Evaluation 
 
 For now, easiest way to evaluate without complex system, since I have shallow pdfs:
 
-1. I created one question per pdf
-2. I hit with an existing retrieve function, --beware I didn't run it on end result-- 
+1. Created one question per pdf
+2. Using existing retrieve function, --beware I didn't run it on end result-- 
 3. Match if same pdf files are hit, giving me hit rate @ k. Calculate MRR on the order again check if retrieved pdf = relevant pdf.
 
 
@@ -402,3 +472,27 @@ I may fix the logic later on, calculate matching on chunks rather than matching 
 Normally, I should record every file in mongodb, save ids of chunks, when I get the question from data loading pipeline I would need to save chunk_id  and match retrieved chunk id = relevant chunk id.
 
 Note : I've written extensive blog on [evaluation pipelines](https://mburaksayici.com/blog/2025/10/12/information-retrieval-1.html).
+
+
+### APIs
+
+
+
+#### 🔧 API Endpoints
+
+All routes are organized in `src/posts/router.py` and `src/sessions/router.py` for clean architecture:
+
+| Endpoint | Method | Description |
+|----------|---------|-------------|
+| `/chat` | POST | Chat with AI assistant |
+| `/sessions` | GET | List all sessions |
+| `/sessions/{session_id}` | GET | Get session information |
+| `/retrieve` | POST | Test document retrieval |
+| `/ingestion/start_job` | POST | Start folder ingestion job |
+| `/ingestion/start_single_file` | POST | Start single file ingestion |
+| `/ingestion/status/{job_id}` | GET | Get job progress and status |
+| `/ingestion/jobs` | GET | List all active jobs |
+| `/evaluation/start` | POST | Start evaluation job |
+| `/evaluation/{evaluation_id}` | GET | Get evaluation results |
+| `/evaluations` | GET | List all evaluations |
+| `/assets/list` | GET | Browse assets directory |
