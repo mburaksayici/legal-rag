@@ -37,7 +37,7 @@ Fill up .env.example and rename it to the .env .
 
 ```
 git clone https://github.com/mburaksayici/legal-rag.git && \
-cd legal-rag && \
+cd legal-rag 
 
 docker-compose up -d
 
@@ -50,7 +50,7 @@ source .venv/bin/activate && \
 uv pip install reportlab python-dotenv && \
 python -m src.assets.prepare_eurlex && \
 mkdir -p assets/sample_pdfs && \
-find assets/pdfs -type f -name '*.pdf' | shuf -n 10 | xargs -I{} cp {} assets/sample_pdfs/ && \
+find assets/pdfs -type f -name '*.pdf' | shuf -n 10 | xargs -I{} cp {} assets/sample_pdfs/ 
 ```
 
 ### Python Project Template 
