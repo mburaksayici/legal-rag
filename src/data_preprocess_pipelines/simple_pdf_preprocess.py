@@ -3,10 +3,15 @@ from typing import Dict, Any
 import PyPDF2
 from pathlib import Path
 from .base import DataPreprocessBase
+from src.ingestion.pdf_ingestor import PDFIngestor
+from src.ingestion.schemas import IngestRequest
 
 
 class SimplePDFPreprocess(DataPreprocessBase):
-    """Simple PDF text extraction using PyPDF2."""
+    """Simple PDF text extraction using PDFIngestor."""
+    
+    def __init__(self):
+        self.ingestor = PDFIngestor()
     
     def run_single_doc(self, file_path: str) -> Dict[str, Any]:
         """
@@ -41,33 +46,38 @@ class SimplePDFPreprocess(DataPreprocessBase):
                     "page_count": 0
                 }
             
-            # Extract text from PDF
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                page_count = len(pdf_reader.pages)
-                
-                text_parts = []
-                for page in pdf_reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        text_parts.append(text)
-                
-                extracted_text = "\n".join(text_parts)
-                
-                if not extracted_text.strip():
-                    return {
-                        "success": False,
-                        "error": "No text could be extracted from PDF",
-                        "text": "",
-                        "page_count": page_count
-                    }
-                
+            # Use PDFIngestor to extract text
+            request = IngestRequest(path_or_url=file_path, media_type="pdf")
+            response = self.ingestor.ingest(request)
+            
+            # Get the text from the response
+            extracted_text = ""
+            if response.items and len(response.items) > 0:
+                extracted_text = response.items[0].text
+            
+            # Get page count separately
+            page_count = 0
+            try:
+                with open(file_path, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    page_count = len(pdf_reader.pages)
+            except Exception:
+                page_count = 0
+            
+            if not extracted_text.strip():
                 return {
-                    "success": True,
-                    "text": extracted_text,
-                    "page_count": page_count,
-                    "character_count": len(extracted_text)
+                    "success": False,
+                    "error": "No text could be extracted from PDF",
+                    "text": "",
+                    "page_count": page_count
                 }
+            
+            return {
+                "success": True,
+                "text": extracted_text,
+                "page_count": page_count,
+                "character_count": len(extracted_text)
+            }
                 
         except Exception as e:
             return {

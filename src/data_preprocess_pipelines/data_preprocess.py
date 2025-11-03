@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional, Any
 
 from src.ingestion.pdf_ingestor import PDFIngestor
+from src.ingestion.pdf_docling_ingestor import PDFDoclingIngestor
 from src.ingestion.schemas import IngestedItem
 from src.chunking.schemas import ChunkItem, ChunkRequest, ChunkResponse
 from src.chunking.semantic_chunker import SemanticChunker
@@ -30,6 +31,7 @@ logger.setLevel(logging.INFO)
 # Named factories
 INGESTORS: Dict[str, Callable[[], object]] = {
 	"pdf": PDFIngestor,
+	"pdf-docling": PDFDoclingIngestor,
 }
 
 PROPOSITIONERS: Dict[str, Callable[[], object]] = {

@@ -1,10 +1,8 @@
 from .base import BaseIngestor
 from .schemas import IngestRequest, IngestResponse, IngestedItem
+import PyPDF2
+from pathlib import Path
 
-from docling.document_converter import DocumentConverter  # type: ignore
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.base_models import InputFormat
 
 class PDFIngestor(BaseIngestor):
 	def __init__(self):
@@ -12,34 +10,43 @@ class PDFIngestor(BaseIngestor):
 
 	def ingest(self, request: IngestRequest) -> IngestResponse:
 		"""
-		Uses Docling to parse PDFs conceptually. If Docling is unavailable, leaves placeholder.
-		- For local paths: convert to text via Docling's DocumentConverter
+		Uses PyPDF2 to parse PDFs quickly.
+		- For local paths: convert to text via PyPDF2's PdfReader
 		- For URLs: not implemented here (placeholder for future HTTP fetch + temp file)
 		"""
 		path_or_url = request.path_or_url
 		text = ""
+		
 		try:
-			# Lazy import to avoid hard dependency at import-time
-			pipeline_options = PdfPipelineOptions(
-			do_ocr=False,
-			generate_page_images=False,         # Sayfa görsellerini ekler
-			generate_picture_images=False,
-				)
-			# NOTE: URL handling can be added by downloading to a temp file first
-			converter = DocumentConverter(
-    format_options={
-        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
-    },
-)
-
-			result = converter.convert(path_or_url)  # expects local file path
-			# Depending on Docling version, export APIs differ; using generic text export
-			# text = result.document.export_to_text()  # placeholder API
-			# If export_to_text isn't available in your version, use markdown/plain export
-			text = getattr(getattr(result, "document", object()), "export_to_text", lambda: "")()
-		except Exception:
-			# Leave empty or add TODO for implementation specifics
-			text = ""  # implement PDF parsing
-
+			path = Path(path_or_url)
+			
+			# Check if file exists
+			if not path.exists():
+				# Return empty response for missing file
+				item = IngestedItem(source=path_or_url, len_characters=0, text="")
+				return IngestResponse(items=[item])
+			
+			# Check if it's a PDF file
+			if path.suffix.lower() != '.pdf':
+				# Return empty response for non-PDF files
+				item = IngestedItem(source=path_or_url, len_characters=0, text="")
+				return IngestResponse(items=[item])
+			
+			# Extract text from PDF using PyPDF2
+			with open(path_or_url, 'rb') as file:
+				pdf_reader = PyPDF2.PdfReader(file)
+				
+				text_parts = []
+				for page in pdf_reader.pages:
+					page_text = page.extract_text()
+					if page_text:
+						text_parts.append(page_text)
+				
+				text = "\n".join(text_parts)
+		
+		except Exception as e:
+			# On any error, return empty text
+			text = ""
+		
 		item = IngestedItem(source=path_or_url, len_characters=len(text), text=text)
 		return IngestResponse(items=[item])
