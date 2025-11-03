@@ -41,14 +41,27 @@ class ChatCrew:
 		sources = []
 		if self.retrieval_agent is not None:
 			try:
-				context_text, sources = self.retrieval_agent.retrieve(
+				# retrieve() returns a list of dicts with keys: text, source, score, metadata
+				retrieved_docs = self.retrieval_agent.retrieve(
 					question=question,
 					use_query_enhancer=self.use_query_enhancer,
 					use_reranking=self.use_reranking
 				)
-				if context_text:
-					retrieved_context = f"Retrieved Context:\n{context_text}"
-					print(f"Retrieved {len(sources)} reranked sources for chat")
+				if retrieved_docs:
+					# Extract text and sources from the retrieved documents
+					sources = [doc["source"] for doc in retrieved_docs]
+					
+					# Format context with numbered sources for proper citation
+					context_parts = []
+					for i, doc in enumerate(retrieved_docs, 1):
+						context_parts.append(f"[Source {i}] from {doc['source']}:\n{doc['text']}")
+					
+					context_text = "\n\n---\n\n".join(context_parts)
+					
+					# Add source list at the end
+					sources_list = "\n".join([f"[{i}] {source}" for i, source in enumerate(sources, 1)])
+					retrieved_context = f"Retrieved Documents:\n\n{context_text}\n\nAvailable Sources:\n{sources_list}"
+					print(f"Retrieved {len(sources)} sources for chat")
 			except Exception as e:
 				# If retrieval fails, continue without context
 				print(f"Warning: Retrieval failed: {e}")

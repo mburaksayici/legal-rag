@@ -575,6 +575,10 @@ async def list_assets(path: Optional[str] = None):
         files = []
         
         for item in sorted(full_path.iterdir()):
+            # Skip hidden files and directories
+            if item.name.startswith('.'):
+                continue
+                
             if item.is_dir():
                 # Count files in directory (non-recursive for performance)
                 try:
@@ -584,11 +588,13 @@ async def list_assets(path: Optional[str] = None):
                         "file_count": file_count,
                         "path": str(item.relative_to(base_assets_path))
                     })
-                except PermissionError:
+                except Exception as e:
+                    # Catch all exceptions, not just PermissionError
                     folders.append({
                         "name": item.name,
                         "file_count": 0,
-                        "path": str(item.relative_to(base_assets_path))
+                        "path": str(item.relative_to(base_assets_path)),
+                        "error": f"Could not count files: {str(e)}"
                     })
             else:
                 files.append({

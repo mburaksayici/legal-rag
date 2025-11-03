@@ -179,7 +179,7 @@ class SessionService:
                 await mongodb_client.initialize()
             
             # Query MongoDB for archived sessions
-            session_docs = await SessionDocument.find_all().sort("-metadata.created_at").limit(limit).to_list()
+            session_docs = await SessionDocument.find().sort("-metadata.created_at").limit(limit).to_list()
             
             for doc in session_docs:
                 # Get first user message
