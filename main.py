@@ -1,5 +1,5 @@
 def main():
-    print("Hello from saga!")
+    print("Hello from rag_boilerplate!")
 
 
 if __name__ == "__main__":

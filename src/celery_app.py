@@ -3,7 +3,7 @@ from src.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
 
 # Create Celery app
 celery_app = Celery(
-    "saga_ingestion",
+    "rag_boilerplate_ingestion",
     broker=f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}" if REDIS_PASSWORD else f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}",
     backend=f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}" if REDIS_PASSWORD else f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}",
     include=["src.distributed_task.ingestion_tasks"]

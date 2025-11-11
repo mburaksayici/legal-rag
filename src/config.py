@@ -15,7 +15,7 @@ REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
 
 # MongoDB configuration
 MONGODB_URL = os.getenv('MONGODB_URL', 'mongodb://localhost:27017')
-MONGODB_DATABASE = os.getenv('MONGODB_DATABASE', 'saga_chat')
+MONGODB_DATABASE = os.getenv('MONGODB_DATABASE', 'rag_boilerplate_chat')
 
 # Session configuration
 SESSION_EXPIRY_MINUTES = int(os.getenv('SESSION_EXPIRY_MINUTES', 2))

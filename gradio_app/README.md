@@ -1,12 +1,12 @@
-# SAGA Gradio UI
+# RAG Boilerplate Gradio UI
 
-Web interface for the SAGA Legal Document RAG System.
+Web interface for the RAG Boilerplate  Document RAG System.
 
 ## Features
 
 ### 4 Main Tabs
 
-1. **💬 Chat** - Interactive chat with legal documents
+1. **💬 Chat** - Interactive chat with  documents
    - Session management and history
    - Source citation
    - Message persistence

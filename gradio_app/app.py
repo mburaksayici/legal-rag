@@ -1,4 +1,4 @@
-"""Main Gradio application for SAGA system."""
+"""Main Gradio application for RAG Boilerplate system."""
 import gradio as gr
 import time
 from typing import Optional, Tuple
