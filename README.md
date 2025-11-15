@@ -7,7 +7,6 @@
 [🎥 Watch the demo on Vimeo](https://vimeo.com/1133081881)
 
 
-
 A RAG system that is :
 
 - Chunking with propositional model + late chunking, and simple recursive overlap retrieval
@@ -19,6 +18,8 @@ A RAG system that is :
 - Dividing conversations into sessions, saving/caching in Redis, cold stage to MongoDB
 - Having simple GUI on Gradio
 - Creates evaluation data specialised in hit rate, that allows to compare different retrieval combinations (with/without reranker/query enhancer)
+
+Read my blog on [RAG Systems](https://mburaksayici.com/blog/).
 
 
 
@@ -50,7 +51,8 @@ Read src/chunking/README.md to see chunking pipeline on action.
       - [Elasticsearch + MongoDB](#elasticsearch--mongodb)
       - [PostgreSQL + pgvector (+ optional Redis)](#postgresql--pgvector--optional-redis)
     - [Chunking Strategy](#chunking-strategy)
-      - [1. Proposition Model :](#1-proposition-model-)
+      - [1. Proposition Model](#1-proposition-model)
+      - [2. Late Chunking via Sequential Sentence Embedding Differences](#2-late-chunking-via-sequential-sentence-embedding-differences)
       - [3. Final Embedding:](#3-final-embedding)
     - [Chat Agent](#chat-agent)
     - [Retriever](#retriever)
@@ -334,9 +336,11 @@ Depending on the needs you can switch to other tech stack.
 
 ### Chunking Strategy 
 
+PS: Please read [my blog about what I think about the clever chunking methods](https://mburaksayici.com/blog/2025/11/08/not-all-clever-chunking-methods-always-worth-it.html), they don't always work.
+
 Chunking consists of three nodes:
 
-#### 1. Proposition Model : 
+#### 1. Proposition Model
 
 Embedding models like diversity on the data, and got confused on the pronouns, I'm guessing especially in legal documents cases.
 
@@ -352,7 +356,7 @@ The proposition has such an effect on EUR-LEX data :
 In src/data_preprocess/README.md, I'm leaving the full example.
 
 
-#### 2. Late Chunking via Sequential Sentence Embedding Differences
+#### 2. Late Chunking via Sequential Sentence Embedding Differences
 
 Milvus and Langchain technical executives both advices Late Chunking. And I've seen the technique that, 
 
@@ -373,6 +377,8 @@ Since the new chunks arrived, a final embedding is applied to save to vector DB.
 
 You can get into the [./src/data_preprocess/README.md](src/data_preprocess/README.md) on a real example of a full pipeline, step by step. I highly suggest that!
 
+
+HOWEVER : Please read my blog on clever chunking methods, that explains they aren't always a way to go : [blog](https://mburaksayici.com/blog/2025/11/08/not-all-clever-chunking-methods-always-worth-it.html)
 
 Final chunking stragegy looks like:
 
