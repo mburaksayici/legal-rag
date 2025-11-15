@@ -29,6 +29,7 @@ A RAG system that is :
 - [RAG Boilerplate](#rag-boilerplate)
 - [Table of Contents](#table-of-contents)
     - [How to run](#how-to-run)
+      - [Container Ports \& Services](#container-ports--services)
     - [Python Project Template](#python-project-template)
     - [Python/Package Manager](#pythonpackage-manager)
     - [Database Choice](#database-choice)
@@ -103,6 +104,29 @@ python -m src.assets.prepare_eurlex --no_docs 300 && \
 mkdir -p assets/sample_pdfs && \
 find assets/pdfs -type f -name '*.pdf' | shuf -n 10 | xargs -I{} cp {} assets/sample_pdfs/ 
 ```
+
+
+#### Container Ports & Services
+
+After running `docker-compose up -d`, the following services are available:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **Gradio UI** | `7860` | Web interface for interacting with the RAG system (chat, retrieval, ingestion, evaluation) |
+| **FastAPI App** | `8000` | Main API server (REST endpoints for chat, retrieval, ingestion, etc.) |
+| **Celery Worker** | - | Background task processor for document ingestion (no exposed port) |
+| **Qdrant** | `6333` | Vector database HTTP API (vector search and storage) |
+| **Qdrant** | `6334` | Vector database gRPC API |
+| **Redis** | `6379` | Cache and session storage, Celery message broker |
+| **MongoDB** | `27017` | Persistent database for sessions and evaluation data |
+| **Redis Commander** | `8081` | Web UI for Redis management (educational/admin tool) |
+| **Mongo Express** | `8082` | Web UI for MongoDB management (educational/admin tool) |
+
+**Quick Access:**
+- 🌐 **Gradio UI**: http://localhost:7860
+- 📡 **FastAPI Docs**: http://localhost:8000/docs
+- 🔍 **Redis UI**: http://localhost:8081
+- 🗄️ **MongoDB UI**: http://localhost:8082
 
 ### Python Project Template 
 
