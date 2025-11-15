@@ -8,10 +8,6 @@
 
 
 
-
-Read README_SYSTEM_DESIGN.md for system design overviews.
-Read src/chunking/README.md to see chunking pipeline on action.
-
 A RAG system that is :
 
 - Chunking with propositional model + late chunking, and simple recursive overlap retrieval
@@ -23,6 +19,12 @@ A RAG system that is :
 - Dividing conversations into sessions, saving/caching in Redis, cold stage to MongoDB
 - Having simple GUI on Gradio
 - Creates evaluation data specialised in hit rate, that allows to compare different retrieval combinations (with/without reranker/query enhancer)
+
+
+
+Read README_SYSTEM_DESIGN.md for system design overviews.
+Read src/chunking/README.md to see chunking pipeline on action.
+
 
 # Table of Contents
 
