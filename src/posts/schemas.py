@@ -1,7 +1,7 @@
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-
+from src.data_preprocess_pipelines.base import DataPreprocessBase
 # Import session schemas
 from src.sessions.schemas import ChatRequest, ChatResponse, SessionResponse
 
@@ -26,6 +26,7 @@ class RetrievalRequest(BaseModel):
     top_k: int = 10
     use_query_enhancer: bool = False
     use_reranking: bool = False
+    pipeline_type: Literal["recursive_overlap", "semantic"] = "recursive_overlap"
 
 class RetrievedDocument(BaseModel):
     text: str

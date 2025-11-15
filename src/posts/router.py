@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import Optional
+from typing import Optional, Literal
 import os
 from pathlib import Path
 from .schemas import IngestFolderRequest, RetrievalRequest, RetrievalResponse, RetrievedDocument
@@ -8,6 +8,7 @@ from src.sessions.service import session_service
 from src.sessions.models import MessageRole
 from src.distributed_task.ingestion_tasks import ingest_documents_task, ingest_single_file_task
 from src.distributed_task.progress_tracker import ProgressTracker
+from src.data_preprocess_pipelines.base import DataPreprocessBase
 from src.distributed_task.schemas import (
     IngestionJobRequest, 
     IngestionJobResponse, 
@@ -24,6 +25,18 @@ from src.evaluation.service import EvaluationService
 from datetime import datetime
 
 router = APIRouter()
+
+
+def get_pipeline_by_type(pipeline_type: Literal["recursive_overlap", "semantic"]) -> DataPreprocessBase:
+    """Get the appropriate data preprocessing pipeline based on type."""
+    if pipeline_type == "recursive_overlap":
+        from src.data_preprocess_pipelines.data_preprocessrecursiveoverlap import data_preprocess_recursive_overlap_pipeline
+        return data_preprocess_recursive_overlap_pipeline
+    elif pipeline_type == "semantic":
+        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+        return data_preprocess_semantic_pipeline
+    else:
+        raise ValueError(f"Unknown pipeline type: {pipeline_type}")
 
 
 @router.post("/chat", response_model=ChatResponse, tags=["chat"])
@@ -109,11 +122,11 @@ async def retrieve_documents(request: RetrievalRequest):
     """
     try:
         # Import here to avoid circular dependencies
-        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
         from src.agents.retrieval_agent.agent import RetrievalAgent
         
-        # Get embedding from pipeline
-        embedding = data_preprocess_semantic_pipeline.embedding
+        # Get pipeline and embedding based on request
+        pipeline = get_pipeline_by_type(request.pipeline_type)
+        embedding = pipeline.embedding
         if embedding is None:
             raise HTTPException(
                 status_code=500,
@@ -175,7 +188,8 @@ async def start_ingestion_job(request: IngestionJobRequest):
         # Start the Celery task
         task = ingest_documents_task.delay(
             folder_path=request.folder_path,
-            file_types=request.file_types
+            file_types=request.file_types,
+            pipeline_type=request.pipeline_type
         )
         
         return IngestionJobResponse(
@@ -201,7 +215,8 @@ async def start_single_file_ingestion(request: SingleFileIngestionRequest):
         # Start the Celery task
         task = ingest_single_file_task.delay(
             file_path=request.file_path,
-            file_type=request.file_type
+            file_type=request.file_type,
+            pipeline_type=request.pipeline_type
         )
         
         return IngestionJobResponse(
@@ -332,9 +347,8 @@ def sync_ingest_single_file(request: SingleFileIngestionRequest):
             )
         
         # Process the document synchronously using the pipeline
-        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
-
-        result = data_preprocess_semantic_pipeline.run_single_doc(request.file_path)
+        pipeline = get_pipeline_by_type(request.pipeline_type)
+        result = pipeline.run_single_doc(request.file_path)
         
         processing_time = time.time() - start_time
         
@@ -398,10 +412,9 @@ async def start_evaluation(request: StartEvaluationRequest):
     - reused_questions: Whether existing questions were reused
     """
     try:
-        # Get embedding from pipeline
-        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
-        
-        embedding = data_preprocess_semantic_pipeline.embedding
+        # Get embedding from default pipeline (recursive_overlap)
+        pipeline = get_pipeline_by_type("recursive_overlap")
+        embedding = pipeline.embedding
         if embedding is None:
             raise HTTPException(
                 status_code=500,
@@ -442,10 +455,9 @@ async def list_evaluations(limit: int = 50):
         List of evaluations sorted by creation date (newest first)
     """
     try:
-        # Get embedding from pipeline
-        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
-        
-        embedding = data_preprocess_semantic_pipeline.embedding
+        # Get embedding from default pipeline (recursive_overlap)
+        pipeline = get_pipeline_by_type("recursive_overlap")
+        embedding = pipeline.embedding
         if embedding is None:
             raise HTTPException(
                 status_code=500,
@@ -493,10 +505,9 @@ async def get_evaluation_status(evaluation_id: str):
     You can fetch each related evaluation individually using this endpoint.
     """
     try:
-        # Get embedding from pipeline
-        from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
-        
-        embedding = data_preprocess_semantic_pipeline.embedding
+        # Get embedding from default pipeline (recursive_overlap)
+        pipeline = get_pipeline_by_type("recursive_overlap")
+        embedding = pipeline.embedding
         if embedding is None:
             raise HTTPException(
                 status_code=500,

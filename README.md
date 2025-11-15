@@ -1,19 +1,24 @@
 
 
-# A RAG System 
+# RAG Boilerplate 
+
+![RAG Boilerplate Demo](docs/rag-boilerplate_HQ.gif)
 
 [🎥 Watch the demo on Vimeo](https://vimeo.com/1133081881)
+
+
+
 
 Read README_SYSTEM_DESIGN.md for system design overviews.
 Read src/chunking/README.md to see chunking pipeline on action.
 
 A RAG system that is :
 
-- Chunking with propositional model + late chunking
+- Chunking with propositional model + late chunking, and simple recursive overlap retrieval
 - Using Qdrant as a Vector DB, utilising its hybrid search (BM25 + Dense Search)
 - Reranks via LLMs
 - Using query enhancement agent via LLMs
-- Using crewAI for conversation agent
+- Using crewAI for conversation+retrieval agent
 - Allows you to chat with data
 - Dividing conversations into sessions, saving/caching in Redis, cold stage to MongoDB
 - Having simple GUI on Gradio
@@ -21,7 +26,7 @@ A RAG system that is :
 
 # Table of Contents
 
-- [A RAG System](#a-rag-system)
+- [RAG Boilerplate](#rag-boilerplate)
 - [Table of Contents](#table-of-contents)
     - [How to run](#how-to-run)
     - [Python Project Template](#python-project-template)
@@ -57,6 +62,7 @@ A RAG system that is :
     - [APIs](#apis)
       - [API Endpoints](#api-endpoints)
     - [What should be done in production](#what-should-be-done-in-production)
+  - [TO-DO](#to-do)
 
 
 
@@ -567,3 +573,24 @@ All routes are organized in `src/posts/router.py` and `src/sessions/router.py` f
   1. Test agents on small models. Test if stupid tasks can be done via 4o-mini or any other cheaper task. Especially the routing tasks. 
   2. Reranking via reranker models if scale is big, if data scale is small cheap LLM models could be less costly.
   3. In my previous experiences, if LLM usage is high and throughput is not expected, hosting LLMs are lot cheaper than apis. Cases include using LLMs to preprocess data lakes. We were able to reduce ChatGPT costs from 40k$ to 5k$ with finetuning small language models, also using ChatGPT as a fallback. 
+
+
+
+
+## TO-DO
+
+- [ ] Qdrant hybrid search  
+- [ ] Document-specific RAG pipelines  
+- [ ] Metadata categorization for document types + include metadata in retrieval-agent prompts  
+- [ ] Embedding models on GPU or batched inference  
+- [ ] Chunk-based evaluation rather than document-level  
+- [ ] Document metadata population in MongoDB  
+- [ ] Memory for conversation agents  
+- [ ] Chain-of-Thought for conversation / retrieval agents  
+- [ ] Agents run as separate services  
+- [ ] Improve Redis → MongoDB synchronization  
+- [ ] Store conversation sessions in MongoDB  
+- [ ] Fusion scoring hyperparameter search for Qdrant hybrid search  
+- [ ] Metadata registry inside retrieval-agent prompt window  
+- [ ] Evaluation pipeline runs as a background task (Celery / worker)
+

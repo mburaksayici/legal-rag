@@ -27,4 +27,4 @@ CHROMADB_DB_PATH = os.getenv('CHROMADB_DB_PATH', './legal_chromadb')
 # Qdrant configuration
 QDRANT_HOST = os.getenv('QDRANT_HOST', 'localhost')
 QDRANT_PORT = int(os.getenv('QDRANT_PORT', 6333))
-QDRANT_COLLECTION_NAME = os.getenv('QDRANT_COLLECTION_NAME', 'legal_documents')
+QDRANT_COLLECTION_NAME = os.getenv('QDRANT_COLLECTION_NAME', 'documents')

@@ -77,7 +77,8 @@ class APIClient:
         query: str,
         top_k: int = 10,
         use_query_enhancer: bool = False,
-        use_reranking: bool = False
+        use_reranking: bool = False,
+        pipeline_type: str = "recursive_overlap"
     ) -> Dict[str, Any]:
         """Retrieve documents from vector database."""
         try:
@@ -87,7 +88,8 @@ class APIClient:
                     "query": query,
                     "top_k": top_k,
                     "use_query_enhancer": use_query_enhancer,
-                    "use_reranking": use_reranking
+                    "use_reranking": use_reranking,
+                    "pipeline_type": pipeline_type
                 },
                 timeout=60
             )
@@ -97,7 +99,12 @@ class APIClient:
     
     # ===== INGESTION ENDPOINTS =====
     
-    def start_ingestion_job(self, folder_path: str, file_types: List[str] = None) -> Dict[str, Any]:
+    def start_ingestion_job(
+        self,
+        folder_path: str,
+        file_types: List[str] = None,
+        pipeline_type: str = "recursive_overlap"
+    ) -> Dict[str, Any]:
         """Start a folder ingestion job."""
         try:
             if file_types is None:
@@ -107,7 +114,8 @@ class APIClient:
                 f"{self.base_url}/ingestion/start_job",
                 json={
                     "folder_path": folder_path,
-                    "file_types": file_types
+                    "file_types": file_types,
+                    "pipeline_type": pipeline_type
                 },
                 timeout=10
             )

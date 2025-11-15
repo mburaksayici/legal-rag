@@ -88,16 +88,21 @@ def refresh_chat_history(session_id):
 
 # ===== RETRIEVAL TAB FUNCTIONS =====
 
-def test_retrieval(query, top_k, use_query_enhancer, use_reranking):
+def test_retrieval(query, top_k, use_query_enhancer, use_reranking, pipeline_type):
     """Test document retrieval."""
     if not query.strip():
         return "Please enter a query"
+    
+    # Default to recursive_overlap if pipeline_type is None
+    if pipeline_type is None:
+        pipeline_type = "recursive_overlap"
     
     result = api_client.retrieve_documents(
         query=query,
         top_k=top_k,
         use_query_enhancer=use_query_enhancer,
-        use_reranking=use_reranking
+        use_reranking=use_reranking,
+        pipeline_type=pipeline_type
     )
     
     return format_retrieved_documents(result)
@@ -123,7 +128,7 @@ def refresh_assets_folders():
     return gr.update(choices=choices, value=None)
 
 
-def start_ingestion(folder_path, pdf_checked, json_checked):
+def start_ingestion(folder_path, pdf_checked, json_checked, pipeline_type):
     """Start ingestion job."""
     if not folder_path:
         return "Please select a folder", None
@@ -137,7 +142,11 @@ def start_ingestion(folder_path, pdf_checked, json_checked):
     if not file_types:
         return "Please select at least one file type", None
     
-    result = api_client.start_ingestion_job(folder_path, file_types)
+    # Default to recursive_overlap if pipeline_type is None
+    if pipeline_type is None:
+        pipeline_type = "recursive_overlap"
+    
+    result = api_client.start_ingestion_job(folder_path, file_types, pipeline_type)
     
     if "error" in result:
         return f"Error: {result['error']}", None
@@ -400,6 +409,14 @@ with gr.Blocks(title=" Document RAG System", theme=gr.themes.Soft()) as demo:
                         value=False
                     )
                     
+                    retrieval_pipeline = gr.Dropdown(
+                        label="Pipeline Type",
+                        choices=["recursive_overlap", "semantic"],
+                        value="recursive_overlap",
+                        interactive=True,
+                        info="Chunking pipeline to use for retrieval"
+                    )
+                    
                     retrieve_btn = gr.Button("🔍 Retrieve Documents", variant="primary")
                 
                 with gr.Column():
@@ -412,7 +429,7 @@ with gr.Blocks(title=" Document RAG System", theme=gr.themes.Soft()) as demo:
             
             retrieve_btn.click(
                 fn=test_retrieval,
-                inputs=[retrieval_query, retrieval_top_k, retrieval_query_enhancer, retrieval_reranking],
+                inputs=[retrieval_query, retrieval_top_k, retrieval_query_enhancer, retrieval_reranking, retrieval_pipeline],
                 outputs=[retrieval_results]
             )
         
@@ -435,6 +452,14 @@ with gr.Blocks(title=" Document RAG System", theme=gr.themes.Soft()) as demo:
                     with gr.Row():
                         ingest_pdf = gr.Checkbox(label="PDF", value=True)
                         ingest_json = gr.Checkbox(label="JSON", value=True)
+                    
+                    ingestion_pipeline = gr.Dropdown(
+                        label="Pipeline Type",
+                        choices=["recursive_overlap", "semantic"],
+                        value="recursive_overlap",
+                        interactive=True,
+                        info="Chunking pipeline to use for ingestion"
+                    )
                     
                     start_ingestion_btn = gr.Button("🚀 Start Ingestion", variant="primary")
                     
@@ -483,7 +508,7 @@ with gr.Blocks(title=" Document RAG System", theme=gr.themes.Soft()) as demo:
             
             start_ingestion_btn.click(
                 fn=start_ingestion,
-                inputs=[ingestion_folder, ingest_pdf, ingest_json],
+                inputs=[ingestion_folder, ingest_pdf, ingest_json, ingestion_pipeline],
                 outputs=[ingestion_start_output, ingestion_job_id]
             )
             

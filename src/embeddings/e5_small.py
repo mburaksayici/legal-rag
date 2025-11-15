@@ -11,7 +11,12 @@ class E5SmallEmbedding(BaseEmbedding):
     def __init__(self):
         name = 'intfloat/multilingual-e5-small'
         weights_folder = os.path.join(EMBEDDING_WEIGHTS_DIR, self.__class__.__name__.lower())
-        super().__init__(embedding_size=384, embedding_name=name, weights_path=weights_folder)
+        super().__init__(
+            embedding_size=384,
+            embedding_name=name,
+            weights_path=weights_folder,
+            max_tokens=512,
+        )
         self.model = None
         self.tokenizer = None
         self.device = None

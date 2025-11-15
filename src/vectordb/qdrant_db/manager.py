@@ -7,7 +7,7 @@ from llama_index.core.storage.storage_context import StorageContext  # type: ign
 class QdrantManager:
 	"""Manages Qdrant client, collection, vector store, and storage context - initialized once."""
 	
-	def __init__(self, host: str, port: int, collection_name: str = "legal_documents"):
+	def __init__(self, host: str, port: int, collection_name: str = "documents"):
 		self.host = host
 		self.port = port
 		self.collection_name = collection_name
@@ -42,10 +42,13 @@ class QdrantManager:
 					collection_name=self.collection_name,
 					vectors_config=VectorParams(size=384, distance=Distance.COSINE)
 				)
+				print(f"✓ Created Qdrant collection: {self.collection_name}")
+			else:
+				print(f"✓ Qdrant collection '{self.collection_name}' already exists")
 		except Exception as e:
-			# Collection might already exist, or there might be another issue
-			# Let it fail gracefully
-			pass
+			# Log the error and re-raise to make the issue visible
+			print(f"❌ Error ensuring Qdrant collection '{self.collection_name}': {e}")
+			raise
 	
 	def get_vector_store(self):
 		"""Return the initialized vector store."""

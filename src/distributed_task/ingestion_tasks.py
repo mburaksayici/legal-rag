@@ -16,26 +16,38 @@ logger.setLevel(logging.INFO)
 
 
 @celery_app.task(bind=True)
-def process_single_document_task(self, file_path: str, master_job_id: str):
+def process_single_document_task(self, file_path: str, master_job_id: str, pipeline_type: str = "recursive_overlap"):
     """
     Celery subtask to process a single document
     
     Args:
         file_path: Path to the file to process
         master_job_id: ID of the master task for progress tracking
+        pipeline_type: Type of pipeline to use ("recursive_overlap" or "semantic")
     """
     task_id = self.request.id
     filename = os.path.basename(file_path)
     logger.info(f"🔷 [Task {task_id}] Starting process_single_document_task for: {filename}")
     logger.info(f"🔷 [Task {task_id}] Master job ID: {master_job_id}")
     logger.info(f"🔷 [Task {task_id}] Full file path: {file_path}")
+    logger.info(f"🔷 [Task {task_id}] Pipeline type: {pipeline_type}")
     
     start_time = time.time()
     
     try:
-        # Process the single document using the pipeline
-        logger.info(f"🔷 [Task {task_id}] Calling data_preprocess_semantic_pipeline.run_single_doc()...")
-        result = data_preprocess_semantic_pipeline.run_single_doc(file_path)
+        # Get the appropriate pipeline based on type
+        if pipeline_type == "recursive_overlap":
+            from src.data_preprocess_pipelines.data_preprocessrecursiveoverlap import data_preprocess_recursive_overlap_pipeline
+            pipeline = data_preprocess_recursive_overlap_pipeline
+        elif pipeline_type == "semantic":
+            from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+            pipeline = data_preprocess_semantic_pipeline
+        else:
+            raise ValueError(f"Unknown pipeline type: {pipeline_type}")
+        
+        # Process the single document using the selected pipeline
+        logger.info(f"🔷 [Task {task_id}] Calling {pipeline_type} pipeline.run_single_doc()...")
+        result = pipeline.run_single_doc(file_path)
         
         processing_time = time.time() - start_time
         logger.info(f"🔷 [Task {task_id}] Processing completed in {processing_time:.2f}s")
@@ -94,13 +106,14 @@ def process_single_document_task(self, file_path: str, master_job_id: str):
 
 
 @celery_app.task(bind=True)
-def ingest_documents_task(self, folder_path: str, file_types: List[str] = None):
+def ingest_documents_task(self, folder_path: str, file_types: List[str] = None, pipeline_type: str = "recursive_overlap"):
     """
     Master Celery task that spawns subtasks for each document (fan-out pattern)
     
     Args:
         folder_path: Path to folder containing documents
         file_types: List of file extensions to process (default: ["pdf"])
+        pipeline_type: Type of pipeline to use ("recursive_overlap" or "semantic")
     """
     if file_types is None:
         file_types = ["pdf"]
@@ -109,6 +122,7 @@ def ingest_documents_task(self, folder_path: str, file_types: List[str] = None):
     logger.info(f"🔶 [Master {job_id}] Starting ingest_documents_task")
     logger.info(f"🔶 [Master {job_id}] Folder path: {folder_path}")
     logger.info(f"🔶 [Master {job_id}] File types: {file_types}")
+    logger.info(f"🔶 [Master {job_id}] Pipeline type: {pipeline_type}")
     
     progress = ProgressTracker(job_id)
     start_time = time.time()
@@ -156,7 +170,7 @@ def ingest_documents_task(self, folder_path: str, file_types: List[str] = None):
         logger.info(f"🔶 [Master {job_id}] Creating {total_files} subtasks...")
         
         subtask_group = group(
-            process_single_document_task.s(file_path, job_id)
+            process_single_document_task.s(file_path, job_id, pipeline_type)
             for file_path in all_files
         )
 
@@ -186,13 +200,14 @@ def ingest_documents_task(self, folder_path: str, file_types: List[str] = None):
 
 
 @celery_app.task(bind=True)
-def ingest_single_file_task(self, file_path: str, file_type: str = None):
+def ingest_single_file_task(self, file_path: str, file_type: str = None, pipeline_type: str = "recursive_overlap"):
     """
     Celery task to ingest a single file using the new pipeline
     
     Args:
         file_path: Path to the file to ingest
         file_type: File type (pdf, json) - auto-detected if not provided
+        pipeline_type: Type of pipeline to use ("recursive_overlap" or "semantic")
     """
     job_id = self.request.id
     filename = os.path.basename(file_path)
@@ -200,6 +215,7 @@ def ingest_single_file_task(self, file_path: str, file_type: str = None):
     logger.info(f"🔶 [Single {job_id}] File: {filename}")
     logger.info(f"🔶 [Single {job_id}] Full path: {file_path}")
     logger.info(f"🔶 [Single {job_id}] File type: {file_type}")
+    logger.info(f"🔶 [Single {job_id}] Pipeline type: {pipeline_type}")
     
     progress = ProgressTracker(job_id)
     start_time = time.time()
@@ -236,9 +252,19 @@ def ingest_single_file_task(self, file_path: str, file_type: str = None):
             status="processing"
         )
         
-        # Process the single document using the new pipeline method
-        logger.info(f"🔶 [Single {job_id}] Calling data_preprocess_semantic_pipeline.run_single_doc()...")
-        result = data_preprocess_semantic_pipeline.run_single_doc(file_path)
+        # Get the appropriate pipeline based on type
+        if pipeline_type == "recursive_overlap":
+            from src.data_preprocess_pipelines.data_preprocessrecursiveoverlap import data_preprocess_recursive_overlap_pipeline
+            pipeline = data_preprocess_recursive_overlap_pipeline
+        elif pipeline_type == "semantic":
+            from src.data_preprocess_pipelines.data_preprocess import data_preprocess_semantic_pipeline
+            pipeline = data_preprocess_semantic_pipeline
+        else:
+            raise ValueError(f"Unknown pipeline type: {pipeline_type}")
+        
+        # Process the single document using the selected pipeline
+        logger.info(f"🔶 [Single {job_id}] Calling {pipeline_type} pipeline.run_single_doc()...")
+        result = pipeline.run_single_doc(file_path)
         
         successful = 1 if result["success"] else 0
         failed = 0 if result["success"] else 1

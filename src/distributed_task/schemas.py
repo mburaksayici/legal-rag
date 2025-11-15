@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 
 
@@ -24,6 +24,7 @@ class IngestionJobRequest(BaseModel):
     """Request schema for starting an ingestion job"""
     folder_path: str
     file_types: Optional[List[str]] = ["pdf", "json"]
+    pipeline_type: Literal["recursive_overlap", "semantic"] = "recursive_overlap"
 
 
 class IngestionJobResponse(BaseModel):
@@ -37,3 +38,4 @@ class SingleFileIngestionRequest(BaseModel):
     """Request schema for single file ingestion"""
     file_path: str
     file_type: Optional[str] = None
+    pipeline_type: Literal["recursive_overlap", "semantic"] = "recursive_overlap"

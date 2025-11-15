@@ -185,3 +185,7 @@ data_preprocess_semantic_config = {
 
 data_preprocess_semantic_pipeline = DataPreprocessSemantic(config=data_preprocess_semantic_config)
 # Export alias expected by router
+
+# Default pipeline: recursive overlap chunker
+from src.data_preprocess_pipelines.data_preprocessrecursiveoverlap import data_preprocess_recursive_overlap_pipeline
+data_preprocess_pipeline = data_preprocess_recursive_overlap_pipeline
