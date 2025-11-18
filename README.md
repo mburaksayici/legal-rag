@@ -2,6 +2,8 @@
 
 # RAG Boilerplate 
 
+Note : Anyone can pick from TO-DO, create issue, and PR. AI-assisted PRs are perfectly welcome!
+
 ![RAG Boilerplate Demo](docs/rag-boilerplate_HQ.gif)
 
 [🎥 Watch the demo on Vimeo](https://vimeo.com/1133081881)
